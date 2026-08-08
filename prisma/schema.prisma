@@ -19,14 +19,21 @@ model User {
 }
 
 model Entry {
-  id        String     @id @default(cuid())
-  title     String     @db.VarChar(255)
-  body      String     @db.Text
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id        String      @id @default(cuid())
+  title     String      @db.VarChar(255)
+  body      String      @db.Text
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
   userId    String
+  status    EntryStatus @default(PENDING)
   insights  Insight[]
   user User @relation(fields: [userId], references: [id])
+}
+
+enum EntryStatus {
+  PENDING    // saved, AI pipeline (topics/nodes) hasn't finished yet
+  PROCESSED  // pipeline finished successfully
+  FAILED     // pipeline threw — entry is saved but has no extracted themes
 }
 
 model Insight {

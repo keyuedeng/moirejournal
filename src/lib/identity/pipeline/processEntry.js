@@ -6,38 +6,54 @@ import prisma from "@/lib/prisma";
 
 export async function processEntry(userId, entryId, entrybody) {
     console.log("Processing entry:", { userId, entryId, bodyLength: entrybody?.length })
-    
+
     const chunks = await semanticChunk(entrybody)
     console.log("got chunks", chunks.length)
 
     const allTouchedNodes = new Set(); //track all nodes touched by this entry
 
-    // extract insights per chunk
-    for (const chunk of chunks) {
-        const chunkText = chunk.text
+    // Each chunk's insight extraction is an independent OpenAI call, so run
+    // them concurrently instead of one-at-a-time — this is the biggest lever
+    // on wall-clock time for multi-chunk entries.
+    const chunkAnalyses = await Promise.all(
+        chunks.map(async (chunk) => ({
+            chunk,
+            analysis: await extractInsight(chunk.text),
+        }))
+    )
 
-        const analysis = await extractInsight(chunk.text);
+    // Persisting the insight rows is also independent per chunk.
+    await Promise.all(
+        chunkAnalyses.map(({ chunk, analysis }) =>
+            prisma.insight.create({
+                data: {
+                    entryId,
+                    topics: analysis.topics || [],
+                    sentiment: analysis.sentiment || 0,
+                    chunkIndex: chunk.index,
+                }
+            })
+        )
+    )
+
+    // Topic -> node canonicalisation has to stay sequential: it reads the
+    // current set of nodes to decide whether to reuse or create one, and
+    // running that concurrently can create duplicate nodes for the same
+    // topic (a classic check-then-act race).
+    for (const { chunk, analysis } of chunkAnalyses) {
+        const chunkText = chunk.text
         const topics = analysis.topics || []
         const sentiment = analysis.sentiment || 0
-
-        await prisma.insight.create({
-            data: {
-                entryId,
-                topics, 
-                sentiment,
-                chunkIndex: chunk.index
-            }
-        })
 
         const chunkNodeIds = []
 
         //process topics -> nodes
         for (const topic of topics) {
             const nodeId = await canonicaliseTopicAlias({
-                userId, 
+                userId,
                 rawTopic: topic,
                 snippet: chunkText,
-                entryId, 
+                entryId,
                 sentiment,
             })
 

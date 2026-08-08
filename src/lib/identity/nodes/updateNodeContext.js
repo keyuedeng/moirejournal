@@ -11,12 +11,13 @@ export async function updateNodeContext(nodeId, context) {
 
     const node = await prisma.node.findUnique({
         where: {id: nodeId },
-        select: { 
+        select: {
             id: true,
             contexts: true,
             count: true,
             label: true,
-            categories: true
+            categories: true,
+            llmSummary: true,
         },
     })
 
@@ -28,15 +29,22 @@ export async function updateNodeContext(nodeId, context) {
         updatedContexts.shift()
     }
 
-    // Generate summary if node will have count >= 2
+    // Generate a summary once the node is established (count >= 2), but not
+    // on every single touch after that — regenerating on every write was
+    // the single biggest cost in the pipeline for themes you return to
+    // often. Instead: always generate the first summary, then refresh it
+    // roughly every 3rd touch so it stays reasonably current without
+    // paying for an LLM call on every entry.
     let updateData = { contexts: updatedContexts }
-    
-    if (node.count >= 2) {
+
+    const shouldRefreshSummary = node.count >= 2 && (!node.llmSummary || node.count % 3 === 0)
+
+    if (shouldRefreshSummary) {
         const result = await generateNodeSummary({
             ...node,
             contexts: updatedContexts
         })
-        
+
         if (result) {
             updateData.llmSummary = result.summary
             updateData.bulletPoints = result.bulletPoints

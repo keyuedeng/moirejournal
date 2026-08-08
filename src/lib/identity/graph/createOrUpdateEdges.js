@@ -43,33 +43,31 @@ export async function createOrUpdateEdges(userId, nodeIds, weightIncrement = 1) 
         existingMap.set(key, edge)
     }
 
-    //prepare updates + creates
-    const updates = []
-    const creates = []
+    // Write edges a few at a time instead of firing every pair as one
+    // Promise.all burst — with pgbouncer, each query opens its own
+    // transaction, so an entry touching several topics (which is a lot of
+    // pairs) could otherwise blow past the connection pool all at once.
+    const CONCURRENCY = 3
+    for (let i = 0; i < pairs.length; i += CONCURRENCY) {
+        const batch = pairs.slice(i, i + CONCURRENCY)
+        await Promise.all(batch.map((pair) => {
+            const key = `${pair.sourceId}_${pair.targetId}`
+            const existing = existingMap.get(key)
 
-    for (const pair of pairs) {
-        const key = `${pair.sourceId}_${pair.targetId}`
-        const existing = existingMap.get(key)
-
-        if (existing) {
-            updates.push(
-                prisma.edge.update({
+            if (existing) {
+                return prisma.edge.update({
                     where: { id: existing.id },
                     data: { weight: existing.weight + weightIncrement }
                 })
-            )
-        } else {
-            creates.push(
-                prisma.edge.create({
-                    data: {
-                        sourceId: pair.sourceId, 
-                        targetId: pair.targetId,
-                        weight: weightIncrement,
-                    }
-                })
-            )
-        }
+            }
+
+            return prisma.edge.create({
+                data: {
+                    sourceId: pair.sourceId,
+                    targetId: pair.targetId,
+                    weight: weightIncrement,
+                }
+            })
+        }))
     }
-    
-    await Promise.all([...updates, ...creates])
 }
