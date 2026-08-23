@@ -5,9 +5,6 @@ import { NotebookPen, Orbit, Menu, X, ChevronDown } from "lucide-react"
 import { useUser, useClerk } from '@clerk/nextjs'
 import { useState, useEffect, useRef } from 'react'
 
-// a small, quiet growth mark — echoes the "see what defines you" theme
-const SPROUT_ART = " \\|/\n  |\n /|\\"
-
 const NAV_LINKS = [
     { href: "/journal", label: "Journal", icon: NotebookPen },
     { href: "/map", label: "My Fragments", icon: Orbit },
@@ -117,7 +114,7 @@ export default function Sidebar() {
                                 <button
                                     role="menuitem"
                                     onClick={() => signOut()}
-                                    className="w-full text-left px-3 py-2 text-sm text-neutral-600 hover:bg-stone-100 rounded-md"
+                                    className="w-full text-left px-3 py-2 text-sm text-neutral-600 hover:bg-stone-100 rounded-md font-[family-name:var(--font-cormorant)]"
                                 >
                                     Logout
                                 </button>
@@ -140,15 +137,14 @@ export default function Sidebar() {
                                     }`}
                                 >
                                     <Icon className="w-4 h-4 shrink-0" />
-                                    <span>{label}</span>
+                                    <span className="font-[family-name:var(--font-cormorant)]">{label}</span>
                                 </Link>
                             )
                         })}
                     </nav>
 
                     <div className="mt-auto pt-6 pb-2 text-center select-none">
-                        <pre className="font-mono text-[10px] leading-tight text-[#b88998]/60">{SPROUT_ART}</pre>
-                        <p className="text-[11px] text-neutral-400 italic font-[family-name:var(--font-cormorant)] mt-1">
+                        <p className="text-[11px] text-neutral-400 italic font-[family-name:var(--font-cormorant)]">
                             grow quietly
                         </p>
                     </div>

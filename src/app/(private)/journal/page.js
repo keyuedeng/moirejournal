@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react"
 import TextareaAutosize from "react-textarea-autosize"
 import { ArrowUpRight, Trash2 } from "lucide-react"
 import { useUser } from '@clerk/nextjs'
@@ -12,9 +12,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-
-// same quiet growth mark used in the sidebar — a single entry is a seed
-const SPROUT_ART = "     \\|/\n      |\n     /|\\"
 
 // Module-scoped so it survives client-side navigation away from and back to
 // this page (Next unmounts the page component on route change, which would
@@ -170,6 +167,46 @@ export default function JournalPage() {
     const [body, setBody] = useState("")
     const [saveStatus, setSaveStatus] = useState("") // "", "saving", "success", "error"
 
+    // Restore an in-progress draft — the page component unmounts on every
+    // route change (only the layout persists), so plain useState alone
+    // loses whatever you were mid-writing the moment you navigate to Map
+    // and back. useLayoutEffect (not useEffect) applies it before the
+    // browser paints, so there's no visible flash of an empty box first —
+    // Clerk's user is already cached from the initial app load by the time
+    // you're navigating within the app, so it's available synchronously here.
+    useLayoutEffect(() => {
+        if (!user?.id) return
+        try {
+            const stored = localStorage.getItem(`journal-draft:${user.id}`)
+            if (!stored) return
+            const draft = JSON.parse(stored)
+            if (draft.title) setTitle(draft.title)
+            if (draft.body) setBody(draft.body)
+        } catch (err) {
+            console.error('Failed to load draft', err)
+        }
+    }, [user?.id])
+
+    // Save the draft as you type (debounced so it's not writing to
+    // localStorage on every keystroke), and clear it once there's nothing
+    // to save — including right after a successful submit, since that
+    // clears title/body too.
+    useEffect(() => {
+        if (!user?.id) return
+        const timeout = setTimeout(() => {
+            try {
+                if (title || body) {
+                    localStorage.setItem(`journal-draft:${user.id}`, JSON.stringify({ title, body }))
+                } else {
+                    localStorage.removeItem(`journal-draft:${user.id}`)
+                }
+            } catch (err) {
+                console.error('Failed to save draft', err)
+            }
+        }, 300)
+        return () => clearTimeout(timeout)
+    }, [title, body, user?.id])
+
     async function handleSubmit(e) {
         e.preventDefault() //stops page refresh
 
@@ -268,7 +305,7 @@ export default function JournalPage() {
                 <div className="mb-4 flex items-baseline justify-between flex-wrap gap-x-4 gap-y-1">
                     <h1 className="text-2xl font-semibold text-neutral-700 font-[family-name:var(--font-cormorant)]">{greeting}{user?.firstName || user?.emailAddresses[0]?.emailAddress?.split('@')[0]}</h1>
                     {realEntries.length > 0 && (
-                        <p className="text-m text-neutral-400 font-[family-name:var(--font-cormorant)] italic">
+                        <p className="text-sm text-neutral-400">
                             {realEntries.length} {realEntries.length === 1 ? 'entry' : 'entries'}
                             {streak >= 2 && ` · ${streak}-day streak`}
                             {earliestDate && ` · since ${earliestDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
@@ -282,7 +319,7 @@ export default function JournalPage() {
                         backgroundSize: '16px 16px',
                     }}
                 >
-                    <h2 className="pb-3 text-neutral-600 italic font-[family-name:var(--font-cormorant)]">Today · {formatted}</h2>
+                    <h2 className="pb-3 text-neutral-600">Today · {formatted}</h2>
                     <form onSubmit={handleSubmit}>
                         <input
                             type="text"
@@ -296,7 +333,7 @@ export default function JournalPage() {
                                 }
                             }}
                             ref={titleInputRef}
-                            className="w-full text-4xl focus:outline-none pb-3 font-[family-name:var(--font-cormorant)] placeholder:font-semibold font-semibold text-neutral-700"
+                            className="w-full text-2xl focus:outline-none pb-3 font-semibold text-neutral-700"
                         />
                         <TextareaAutosize
                             minRows={2}
@@ -375,8 +412,7 @@ export default function JournalPage() {
                     <div>
                     {entries.length === 0 ? (
                         <div className="flex flex-col items-center gap-3 py-16 text-center select-none">
-                            <pre className="font-mono text-sm leading-tight text-[#b88998]/70">{SPROUT_ART}</pre>
-                            <p className="text-neutral-500 font-[family-name:var(--font-cormorant)] italic text-lg">
+                            <p className="text-neutral-500">
                                 Your story starts with a single entry.
                             </p>
                         </div>
@@ -433,7 +469,7 @@ function ActivityStrip({ entries, compact = false }) {
                     </div>
                 ))}
             </div>
-            <span className="text-m text-neutral-400 font-[family-name:var(--font-cormorant)] italic shrink-0">
+            <span className="text-sm text-neutral-400 shrink-0">
                 last 12 weeks
             </span>
         </div>
