@@ -1,5 +1,6 @@
 "use client"
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react"
+import { Suspense, useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import TextareaAutosize from "react-textarea-autosize"
 import { ArrowUpRight, Trash2 } from "lucide-react"
 import { useUser } from '@clerk/nextjs'
@@ -77,7 +78,18 @@ function activityColor(count) {
 }
 
 export default function JournalPage() {
+    // useSearchParams requires a Suspense boundary in the app router
+    return (
+        <Suspense fallback={<div className="p-6 md:p-8 min-h-screen bg-gradient-to-br from-stone-100/50 via-slate-50/40 to-neutral-100/50" />}>
+            <JournalPageInner />
+        </Suspense>
+    )
+}
+
+function JournalPageInner() {
     const { user } = useUser()
+    const searchParams = useSearchParams()
+    const openEntryId = searchParams.get('entry')
     const today = new Date()
     const options = {
         weekday: "long",
@@ -174,18 +186,29 @@ export default function JournalPage() {
     // browser paints, so there's no visible flash of an empty box first —
     // Clerk's user is already cached from the initial app load by the time
     // you're navigating within the app, so it's available synchronously here.
+    //
+    // A ?theme= param (from the Map's "Write about this" button) prefills
+    // the title with that theme — but only when there's no existing draft,
+    // so it can never clobber something you were already mid-writing.
     useLayoutEffect(() => {
         if (!user?.id) return
         try {
             const stored = localStorage.getItem(`journal-draft:${user.id}`)
-            if (!stored) return
-            const draft = JSON.parse(stored)
-            if (draft.title) setTitle(draft.title)
-            if (draft.body) setBody(draft.body)
+            if (stored) {
+                const draft = JSON.parse(stored)
+                if (draft.title) setTitle(draft.title)
+                if (draft.body) setBody(draft.body)
+                return
+            }
         } catch (err) {
             console.error('Failed to load draft', err)
         }
-    }, [user?.id])
+
+        const theme = searchParams.get('theme')
+        if (theme) {
+            setTitle(theme.charAt(0).toUpperCase() + theme.slice(1))
+        }
+    }, [user?.id, searchParams])
 
     // Save the draft as you type (debounced so it's not writing to
     // localStorage on every keystroke), and clear it once there's nothing
@@ -419,7 +442,12 @@ export default function JournalPage() {
                     ) : (
                         <ul className="border border-stone-200 rounded-xl bg-white/60 overflow-hidden">
                             {entries.map((entry) => (
-                                <JournalEntryItem key={entry.id} entry={entry} onDelete={handleDeleteEntry} />
+                                <JournalEntryItem
+                                    key={entry.id}
+                                    entry={entry}
+                                    onDelete={handleDeleteEntry}
+                                    autoOpen={entry.id === openEntryId}
+                                />
                             ))}
                         </ul>
                     )}
@@ -452,8 +480,10 @@ function RailCard({ title, children }) {
 
 function ActivityStrip({ entries, compact = false }) {
     const weeks = useMemo(() => buildActivityWeeks(entries), [entries])
-    if (entries.length === 0) return null
 
+    // Show the grid from day one — an all-empty strip still communicates
+    // "this is where your rhythm will show up," which is more useful than
+    // the widget (and its rail-card title) just not being there yet.
     return (
         <div className={compact ? "space-y-2" : "mb-6 flex items-center gap-4 px-1"}>
             <div className="flex gap-[3px]">
@@ -492,7 +522,18 @@ function RecurringThemes({ compact = false }) {
             .catch(() => {}) // decorative widget — fail quietly, no error UI needed
     }, [])
 
-    if (themes.length === 0) return null
+    if (themes.length === 0) {
+        // Mobile/tablet: this renders inline with no heading of its own, so
+        // rendering nothing is still correct there. In the rail, though, it
+        // sits under a "Recurring themes" title — leaving that heading with
+        // nothing underneath reads as broken, not just empty.
+        if (!compact) return null
+        return (
+            <p className="text-xs text-neutral-400 italic">
+                Themes will appear as you write more.
+            </p>
+        )
+    }
 
     return (
         <div className={compact ? "flex flex-wrap gap-1.5" : "mb-6 flex items-center gap-2 flex-wrap px-1"}>
@@ -506,7 +547,7 @@ function RecurringThemes({ compact = false }) {
     )
 }
 
-function JournalEntryItem({ entry, onDelete }) {
+function JournalEntryItem({ entry, onDelete, autoOpen = false }) {
     const [confirmingDelete, setConfirmingDelete] = useState(false)
     const [deleting, setDeleting] = useState(false)
     const [deleteError, setDeleteError] = useState(false)
@@ -532,7 +573,7 @@ function JournalEntryItem({ entry, onDelete }) {
 
     return (
         <li>
-            <Dialog onOpenChange={(open) => { if (!open) setConfirmingDelete(false) }}>
+            <Dialog defaultOpen={autoOpen} onOpenChange={(open) => { if (!open) setConfirmingDelete(false) }}>
                 <DialogTrigger asChild>
                     <button
                         disabled={entry.saving}

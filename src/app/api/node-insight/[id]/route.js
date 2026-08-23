@@ -1,41 +1,42 @@
 import prisma from "@/lib/prisma";
 import { generateNodeSummary } from "@/lib/identity/nodes/generateNodeSummary";
-import { openai } from "@/lib/openai";
 import { auth } from '@clerk/nextjs/server'
+
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000
 
 export async function GET(request, { params }) {
     try {
         const { userId } = await auth()
-        
+
         if (!userId) {
             return Response.json({ error: "Unauthorized" }, { status: 401 })
         }
-        
+
         const { id } = await params
-        
+
         // fetch node with related data
         const node = await prisma.node.findUnique({
-            where: { 
+            where: {
                 id,
                 userId
-            }, 
+            },
             include: {
                 topicAliases: {
                     select: {
-                        id: true, 
+                        id: true,
                         topic: true
                     }
-                }, 
+                },
                 outgoingEdges: {
                     include: {
                         target: {
                             select: {
-                                id: true, 
-                                label: true, 
+                                id: true,
+                                label: true,
                                 count: true
                             }
                         }
-                    }, 
+                    },
                     orderBy: { weight: 'desc' },
                     take: 10
                 },
@@ -59,70 +60,64 @@ export async function GET(request, { params }) {
             return Response.json({ error: "Node not found" }, { status: 404 })
         }
 
-        // get contexts
-        const excerpts = node.contexts.slice(0,5)
-
         const uniqueEntryIds = new Set(node.contexts.map(c => c.entryId))
-        
-        // Use stored bullet points or generate if missing
-        let bulletPoints = node.bulletPoints || []
-        
-        if (bulletPoints.length === 0 && node.count >= 2 && excerpts.length > 0) {
-            // Generate bullet points if missing
-            const excerptsText = excerpts.map((e, i) => `${i + 1}. ${e.text}`).join('\n\n')
-            
-            const bulletPrompt = `Read these journal excerpts about "${node.label}". Extract 3-5 short factual bullet points describing the specific moments or contexts where this appears. Use second person ("you/your") to address the writer directly.
 
-${excerptsText}
+        // Real dates for each moment this theme appears — contexts only
+        // store an entryId, not a timestamp, so this resolves them against
+        // the entries themselves. Powers both the chronological excerpts
+        // and the mood/trajectory reads below.
+        const entryDates = await prisma.entry.findMany({
+            where: { id: { in: Array.from(uniqueEntryIds) } },
+            select: { id: true, createdAt: true }
+        })
+        const entryDateMap = new Map(entryDates.map(e => [e.id, e.createdAt]))
 
-Return only the bullet points, one per line, without numbers or dashes. Each should start with a verb or describe a specific moment. Be concise (max 12 words per point).
+        const datedContexts = node.contexts
+            .map(c => ({ ...c, createdAt: entryDateMap.get(c.entryId) || null }))
+            .filter(c => c.createdAt)
+            .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)) // oldest -> newest
 
-Examples:
-- Comparing your progress to others
-- Feeling "late" to becoming who you imagine
-- Noticing tension between comfort and growth`
+        // Show the excerpts as a small chronological arc rather than an
+        // unordered dump — the 5 most recent, oldest of those first.
+        const excerpts = datedContexts.slice(-5)
 
-            try {
-                const response = await openai.chat.completions.create({
-                    model: "gpt-4o-mini",
-                    messages: [{ role: "user", content: bulletPrompt }],
-                    temperature: 0.3,
-                    max_tokens: 150
-                })
-                
-                bulletPoints = response.choices[0].message.content
-                    .trim()
-                    .split('\n')
-                    .filter(line => line.trim().length > 0)
-                    .map(line => line.replace(/^[-–—•]\s*/, '')) // Remove any bullet markers
-                    .slice(0, 5)
-                
-                // Store them for future use
-                await prisma.node.update({
-                    where: { id },
-                    data: { bulletPoints }
-                })
-            } catch (error) {
-                console.error("Error generating bullet points:", error)
-                // Fallback to simple extraction if LLM fails
-                bulletPoints = excerpts.map(e => {
-                    const text = e.excerpt || e.text
-                    return text.length > 80 ? text.substring(0, 80) + '...' : text
-                })
-            }
+        // Emotional tone — every context already carries a sentiment score
+        // from the extraction pipeline; it just never made it to the UI.
+        const sentiments = datedContexts.map(c => c.sentiment).filter(s => typeof s === 'number')
+        let mood = null
+        if (sentiments.length > 0) {
+            const avg = sentiments.reduce((a, b) => a + b, 0) / sentiments.length
+            if (avg > 0.25) mood = "Mostly warm"
+            else if (avg < -0.25) mood = "Often heavy"
+            else mood = "Mixed feelings"
+        }
+
+        // Trajectory — a rough read on recent pattern from the touches we
+        // actually have on hand (contexts are capped at the 10 most recent),
+        // not a precise historical count. Good enough to answer "is this
+        // growing, steady, or fading" without needing new schema/tracking.
+        let trajectory = null
+        if (datedContexts.length >= 3) {
+            const now = Date.now()
+            const recentCount = datedContexts.filter(c => now - new Date(c.createdAt).getTime() <= THIRTY_DAYS_MS).length
+            const daysSinceLast = (now - new Date(datedContexts[datedContexts.length - 1].createdAt).getTime()) / (24 * 60 * 60 * 1000)
+
+            if (daysSinceLast > 45) trajectory = "Quieter lately"
+            else if (recentCount / datedContexts.length >= 0.6) trajectory = "Increasingly present"
+            else trajectory = "A steady presence"
         }
 
         //build connections summary
         const connections = {
             outgoing: node.outgoingEdges.map(edge => ({
-                nodeId: edge.target.id, 
-                label: edge.target.label, 
+                nodeId: edge.target.id,
+                label: edge.target.label,
                 weight: edge.weight,
                 count: edge.target.count
             })),
             incoming: node.incomingEdges.map(edge => ({
-                nodeId: edge.source.id, 
-                label: edge.source.label, 
+                nodeId: edge.source.id,
+                label: edge.source.label,
                 weight: edge.weight,
                 count: edge.source.count
             }))
@@ -130,7 +125,7 @@ Examples:
 
         // generate insights with more human, reflective language
         const generatedInsights = []
-        
+
         // Frequency insight
         if (uniqueEntryIds.size > 3) {
             generatedInsights.push(`This comes up often in your reflections`)
@@ -167,44 +162,42 @@ Examples:
         if (node.count > 5) {
             generatedInsights.push(`This is a recurring theme in your life`)
         }
-        
+
         // summary
         const summary = {
             label: node.label,
-            categories: node.categories, 
-            count: node.count, 
-            entryCount: uniqueEntryIds.size
+            categories: node.categories,
+            count: node.count,
+            entryCount: uniqueEntryIds.size,
+            since: node.createdAt,
         }
 
         // Use stored LLM summary or generate if missing
         let llmSummary = node.llmSummary
-        
+
         // If no stored summary but node qualifies (count >= 2), generate one
         if (!llmSummary && node.count >= 2) {
             const result = await generateNodeSummary(node)
-            
+
             // Store it for future use
             if (result) {
                 await prisma.node.update({
                     where: { id },
-                    data: { 
+                    data: {
                         llmSummary: result.summary,
                         bulletPoints: result.bulletPoints
                     }
                 })
                 llmSummary = result.summary
-                // Also update bulletPoints if they weren't already set
-                if (bulletPoints.length === 0) {
-                    bulletPoints = result.bulletPoints
-                }
             }
         }
 
         return Response.json({
-            summary, 
+            summary,
             llmSummary,
             insights: generatedInsights,
-            bulletPoints,
+            mood,
+            trajectory,
             excerpts,
             connections
         })

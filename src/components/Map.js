@@ -255,8 +255,15 @@ export default function Map({ onNodeSelect }) {
                     minZoom={0.4}
                     maxZoom={6}
                     nodeCanvasObject={(node, ctx, globalScale) => {
-                        // Skip if node position is not yet initialized
-                        if (!node.x || !node.y || !isFinite(node.x) || !isFinite(node.y)) return
+                        // Skip if node position is not yet initialized. Uses
+                        // == null (not a truthiness check) on purpose — a
+                        // node that has legitimately settled at exactly
+                        // x:0 or y:0 is a real, valid position, not an
+                        // uninitialized one. A lone isolated node gets
+                        // pulled straight to the origin by the centering
+                        // forces, so with `!node.x` this was silently
+                        // never drawn at all whenever there was only one node.
+                        if (node.x == null || node.y == null || !isFinite(node.x) || !isFinite(node.y)) return
 
                         // Warm neutral stone tones instead of a color hue —
                         // deeper/darker for themes you return to often,
@@ -380,7 +387,13 @@ export default function Map({ onNodeSelect }) {
                     // color the library passes in, and a slightly larger
                     // radius than the visual dot for a more forgiving target.
                     nodePointerAreaPaint={(node, color, ctx, globalScale) => {
-                        if (!node.x || !node.y || !isFinite(node.x) || !isFinite(node.y)) return
+                        // Same fix as the visible draw above — a node sitting
+                        // exactly at x:0/y:0 is a real position, not an
+                        // uninitialized one; `!node.x` was treating it as
+                        // the latter and skipping the hit-test circle
+                        // entirely, so the (now-visible) node had nothing
+                        // clickable underneath it.
+                        if (node.x == null || node.y == null || !isFinite(node.x) || !isFinite(node.y)) return
                         const hitRadius = (nodeBaseSize(node) + 4) / globalScale
                         ctx.beginPath()
                         ctx.arc(node.x, node.y, hitRadius, 0, 2 * Math.PI)
