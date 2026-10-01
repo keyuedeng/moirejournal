@@ -13,6 +13,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import PostEntryCard from "@/components/intentions/PostEntryCard"
+import OpenLoops from "@/components/intentions/OpenLoops"
 
 // Module-scoped so it survives client-side navigation away from and back to
 // this page (Next unmounts the page component on route change, which would
@@ -178,6 +180,45 @@ function JournalPageInner() {
     const [title, setTitle] = useState("")
     const [body, setBody] = useState("")
     const [saveStatus, setSaveStatus] = useState("") // "", "saving", "success", "error"
+    // After saving, the editor box turns into the post-entry card (saved
+    // confirmation + open loops found in the entry) until "New entry".
+    // null | { key, preview, saving } | { key, entryId, preview, loading }
+    //      | { key, entryId, preview, suggestions, related }
+    const [postEntry, setPostEntry] = useState(null)
+    const closePostEntry = useCallback(() => setPostEntry(null), [])
+
+    // Runs separately from the save itself so the entry never waits on the
+    // LLM. If it fails, the card just says "Saved" with nothing found —
+    // the entry is saved either way.
+    async function loadSuggestions(key, entryId) {
+        try {
+            const res = await fetch(`/api/entries/${entryId}/intentions`, { method: "POST" })
+            if (!res.ok) throw new Error(await res.text())
+            const { suggestions, related } = await res.json()
+            // ignore a slow response if the card was closed or another entry saved since
+            setPostEntry(prev => prev?.key === key ? { ...prev, loading: false, suggestions, related } : prev)
+        } catch (err) {
+            console.error('Failed to load open loop suggestions', err)
+            setPostEntry(prev => prev?.key === key ? { ...prev, loading: false, suggestions: [], related: [] } : prev)
+        }
+    }
+
+    // the "Open loops" strip above the editor
+    const [openLoops, setOpenLoops] = useState(null)
+    const loadOpenLoops = useCallback(async () => {
+        try {
+            const res = await fetch("/api/intentions/surface")
+            if (!res.ok) throw new Error(await res.text())
+            setOpenLoops(await res.json())
+        } catch (err) {
+            // the strip is a helper, not critical — keep whatever we had
+            console.error('Failed to load open loops', err)
+        }
+    }, [])
+
+    useEffect(() => {
+        loadOpenLoops()
+    }, [loadOpenLoops])
 
     // Restore an in-progress draft — the page component unmounts on every
     // route change (only the layout persists), so plain useState alone
@@ -238,7 +279,11 @@ function JournalPageInner() {
         const bodyToSave = body
         setTitle("")
         setBody("")
-        setSaveStatus("saving")
+
+        // the editor box becomes the post-entry card straight away
+        const key = `save-${Date.now()}`
+        const preview = titleToSave.trim() || bodyToSave.trim().split(/\s+/).slice(0, 8).join(' ')
+        setPostEntry({ key, preview, saving: true })
 
         // show the entry right away so the list never feels like it
         // swallowed what you just wrote, while the real save is in flight
@@ -261,6 +306,7 @@ function JournalPageInner() {
             if (!postRes.ok) {
                 console.error('Failed to save entry', await postRes.text())
                 setEntries(prev => prev.filter(entry => entry.id !== tempId))
+                restoreAfterFailedSave(key, titleToSave, bodyToSave)
                 setSaveStatus("error")
                 setTimeout(() => setSaveStatus(""), 3000)
                 return
@@ -277,15 +323,32 @@ function JournalPageInner() {
                 return next
             })
 
-            setSaveStatus("success")
-            setTimeout(() => setSaveStatus(""), 3000)
+            // no "Entry saved" toast — the card's ✓ Saved line says it, right
+            // where you were looking
+            setPostEntry(prev => prev?.key === key ? { key, entryId: savedEntry.id, preview, loading: true } : prev)
+            loadSuggestions(key, savedEntry.id)
 
         } catch (err) {
             console.error('Error saving entry', err)
             setEntries(prev => prev.filter(entry => entry.id !== tempId))
+            restoreAfterFailedSave(key, titleToSave, bodyToSave)
             setSaveStatus("error")
             setTimeout(() => setSaveStatus(""), 3000)
         }
+    }
+
+    // put the text back in the editor rather than losing it
+    function restoreAfterFailedSave(key, titleToSave, bodyToSave) {
+        setPostEntry(prev => prev?.key === key ? null : prev)
+        setTitle(prev => prev || titleToSave)
+        setBody(prev => prev || bodyToSave)
+    }
+
+    // "Write about it" on a goal check-in: start an entry about that loop
+    function writeAbout(text) {
+        setPostEntry(null)
+        setTitle(prev => prev || text)
+        requestAnimationFrame(() => bodyInputRef.current?.focus())
     }
 
     async function handleDeleteEntry(id) {
@@ -335,6 +398,7 @@ function JournalPageInner() {
                         </p>
                     )}
                 </div>
+                <OpenLoops data={openLoops} onChanged={loadOpenLoops} onWriteAbout={writeAbout} />
                 <div
                     className="border border-stone-200 rounded-xl p-4 mb-6 shadow-sm bg-white/80"
                     style={{
@@ -342,6 +406,15 @@ function JournalPageInner() {
                         backgroundSize: '16px 16px',
                     }}
                 >
+                    {postEntry ? (
+                        <PostEntryCard
+                            key={postEntry.key}
+                            state={postEntry}
+                            onClose={closePostEntry}
+                            onChange={loadOpenLoops}
+                        />
+                    ) : (
+                    <>
                     <h2 className="pb-3 text-neutral-600">Today · {formatted}</h2>
                     <form onSubmit={handleSubmit}>
                         <input
@@ -390,6 +463,8 @@ function JournalPageInner() {
                             Save
                         </button>
                     </form>
+                    </>
+                    )}
 
                     {/* Status popup */}
                     {saveStatus && (

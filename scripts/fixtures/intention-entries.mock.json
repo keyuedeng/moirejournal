@@ -16,10 +16,29 @@
     "note": "List-style dump with many concrete tasks and explicit dates. Tests the max-4 cap and choosing the most important ones, plus date handling.",
     "body": "ok brain dump bc my head is too full:\n- rent is due friday, need to transfer to Jess\n- email tutor about the extension for the stats assignment (due next wed!!)\n- book a haircut, it's getting bad\n- return the library books before the fine kicks in\n- buy mum's birthday present, her bday is the 18th\n- reply to that recruiter on linkedin\n- groceries\nfeel slightly better now that it's all out. still a lot though.",
     "expected": [
-      { "kind": "TASK", "text": "Transfer rent to Jess", "horizon": "WEEK", "why": "explicit deadline: Friday" },
-      { "kind": "TASK", "text": "Email tutor about stats assignment extension", "horizon": "WEEK", "why": "deadline: before next Wednesday" },
-      { "kind": "TASK", "text": "Buy mum's birthday present", "horizon": "MONTH", "why": "deadline: the 18th" },
-      { "kind": "TASK", "text": "Reply to the LinkedIn recruiter", "horizon": "WEEK" }
+      {
+        "kind": "TASK",
+        "text": "Transfer rent to Jess",
+        "horizon": "WEEK",
+        "why": "explicit deadline: Friday"
+      },
+      {
+        "kind": "TASK",
+        "text": "Email tutor about stats assignment extension",
+        "horizon": "WEEK",
+        "why": "deadline: before next Wednesday"
+      },
+      {
+        "kind": "TASK",
+        "text": "Buy mum's birthday present",
+        "horizon": "MONTH",
+        "why": "deadline: the 18th"
+      },
+      {
+        "kind": "TASK",
+        "text": "Reply to the LinkedIn recruiter",
+        "horizon": "WEEK"
+      }
     ],
     "acceptableAlso": [
       "Book a haircut",
@@ -47,7 +66,12 @@
     "note": "Mostly reports completed things and progress on earlier intentions. Tests past-tense exclusion and the 'related existing intention' path.",
     "body": "Productive day for once!! Finally went to the dentist, turns out no cavities so all that dread for nothing. Did 2 leetcode questions this morning, the medium one took forever but I got it. Also cleaned my whole room. Tomorrow I'm going to finish the portfolio site landing page, it's like 80% done. Feeling good.",
     "expected": [
-      { "kind": "TASK", "text": "Finish the portfolio site landing page", "horizon": "WEEK", "why": "explicit plan for tomorrow, not the next few hours" }
+      {
+        "kind": "TASK",
+        "text": "Finish the portfolio site landing page",
+        "horizon": "WEEK",
+        "why": "explicit plan for tomorrow, not the next few hours"
+      }
     ],
     "shouldNotExtract": [
       "dentist, leetcode questions, cleaning room (already done; past tense)"
@@ -59,8 +83,16 @@
     "note": "Intentions phrased as stopping something, plus a recurring routine. Tests negative/'stop' goals and cadence wording.",
     "body": "I've been on my phone until like 2am every night this week and I feel horrible every morning. I want to stop scrolling in bed. Maybe I'll leave my phone charging on the desk instead of next to me. I also want to start going to the gym 3 times a week again, I was so consistent last sem and I miss how it made me feel.",
     "expected": [
-      { "kind": "GOAL", "text": "Stop scrolling in bed", "suggestedStepHint": "charge phone on the desk tonight (the writer already proposed this)" },
-      { "kind": "GOAL", "text": "Go to the gym 3 times a week", "horizon": "WEEK" }
+      {
+        "kind": "GOAL",
+        "text": "Stop scrolling in bed",
+        "suggestedStepHint": "charge phone on the desk tonight (the writer already proposed this)"
+      },
+      {
+        "kind": "GOAL",
+        "text": "Go to the gym 3 times a week",
+        "horizon": "WEEK"
+      }
     ],
     "shouldNotExtract": [],
     "why": "The writer already proposed a concrete step for the first goal; the extractor should reuse their idea rather than invent a new one."
@@ -70,7 +102,12 @@
     "note": "Touches mental and physical health. Tests careful wording: extract only what is explicitly stated, never diagnose or add advice.",
     "body": "Anxiety has been really bad this week. Heart racing in lectures, couldn't focus at all. I think it might be time to actually talk to someone about it. The uni has free counselling so I should probably look into booking a session. I'm also barely eating properly because I just forget. I don't know. Writing this down helps a bit.",
     "expected": [
-      { "kind": "TASK", "text": "Look into booking a uni counselling session", "horizon": "WEEK", "why": "explicit, concrete, writer-stated" }
+      {
+        "kind": "TASK",
+        "text": "Look into booking a uni counselling session",
+        "horizon": "WEEK",
+        "why": "explicit, concrete, writer-stated"
+      }
     ],
     "shouldNotExtract": [
       "'eat properly' (writer did not state an intention; do not infer health goals)",
@@ -83,8 +120,18 @@
     "note": "Long-horizon dreams and conditional plans. Tests WISH vs GOAL and handling of 'if X then Y'.",
     "body": "Watched a video of someone who moved to Tokyo to work and now I can't stop thinking about it. One day I want to live in Japan for at least a year. If I get the grad role at the bank, I'll probably move out of home next year. Also kind of want to learn to surf properly at some point, I always say this every summer lol.",
     "expected": [
-      { "kind": "WISH", "text": "Live in Japan for at least a year", "horizon": "SOMEDAY", "suggestedStepHint": "look up working holiday visa requirements for Japan" },
-      { "kind": "WISH", "text": "Learn to surf properly", "horizon": "SOMEDAY", "suggestedStepHint": "book one beginner lesson this summer" }
+      {
+        "kind": "WISH",
+        "text": "Live in Japan for at least a year",
+        "horizon": "SOMEDAY",
+        "suggestedStepHint": "look up working holiday visa requirements for Japan"
+      },
+      {
+        "kind": "WISH",
+        "text": "Learn to surf properly",
+        "horizon": "SOMEDAY",
+        "suggestedStepHint": "book one beginner lesson this summer"
+      }
     ],
     "shouldNotExtract": [
       "'move out of home next year' (conditional on an outcome that hasn't happened)"
@@ -96,10 +143,45 @@
     "note": "Very short entry with one buried intention. Tests that short entries still get processed and don't produce invented extras.",
     "body": "tired. need to call grandma this weekend, haven't spoken in ages.",
     "expected": [
-      { "kind": "TASK", "text": "Call grandma", "horizon": "WEEK", "why": "explicit, deadline: this weekend" }
+      {
+        "kind": "TASK",
+        "text": "Call grandma",
+        "horizon": "WEEK",
+        "why": "explicit, deadline: this weekend"
+      }
     ],
     "shouldNotExtract": [
       "'tired' (state, not intention)"
+    ]
+  },
+  {
+    "id": "mentions-existing-loops",
+    "note": "The writer already has open loops. Tests matching paraphrases to existing loops (not creating duplicates) and spotting a finished one. Based on a real miss: 'get started on running' created a second running goal.",
+    "existingLoops": [
+      "Start running again",
+      "Email my tutor about the assignment extension",
+      "Put some furniture on Facebook Marketplace",
+      "Book a haircut"
+    ],
+    "body": "finally emailed my tutor this morning, such a relief. didn't go running yet though, need to actually get started on that. and i still haven't listed the furniture on marketplace, really need to do that tomorrow. oh and i need to book a dentist appointment too.",
+    "expected": [
+      {
+        "kind": "TASK",
+        "text": "Book a dentist appointment",
+        "horizon": "MONTH",
+        "why": "the only new loop; similar to 'Book a haircut' but NOT the same"
+      }
+    ],
+    "expectedRepeats": [
+      "Start running again",
+      "Put some furniture on Facebook Marketplace"
+    ],
+    "expectedFinished": [
+      "Email my tutor about the assignment extension"
+    ],
+    "shouldNotExtract": [
+      "running / marketplace as new items (they repeat existing loops)",
+      "emailing the tutor (done)"
     ]
   }
 ]

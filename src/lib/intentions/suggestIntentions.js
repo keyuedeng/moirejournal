@@ -1,16 +1,20 @@
 import prisma from "@/lib/prisma";
+import { openai } from "@/lib/openai";
 import { embedText } from "@/lib/identity/embeddings/embedText";
 import { cosineSimilarity } from "@/lib/utils/similarity";
 import { extractIntentions } from "./extractIntentions";
 
-// thresholds measured with text-embedding-3-small:
-// paraphrases of the same loop score 0.77-0.93, while different-but-similar
-// loops ("book a haircut" vs "book a dentist appointment") score ~0.65.
-// a wrong merge loses a task, a missed one just shows twice — so err high.
+// the extractor decides "same loop" by meaning (it sees the open loops).
+// embeddings are a backstop for close wordings it occasionally misses
+// ("list the furniture on marketplace" vs "put some furniture on facebook
+// marketplace" = 0.76). they can't be the main check: some paraphrases
+// score as low as 0.58 ("start running again" vs "get started on running").
+// every different-loop pair measured so far is <= 0.65 ("book a haircut"
+// vs "book a dentist appointment"), so 0.75 sits just above that.
 const SAME_LOOP_THRESHOLD = 0.75
 // whole entry vs a loop's text: related 0.32-0.43, unrelated <= 0.17
 const RELATED_THRESHOLD = 0.3
-const MAX_RELATED = 2
+const MAX_RELATED = 3
 
 // what the client gets — never the embedding
 export const intentionSelect = {
@@ -31,16 +35,38 @@ export const intentionSelect = {
 /*
 runs once per entry, right after it's saved:
 - extracts open loops from the entry and saves new ones as SUGGESTED
-- skips ones that duplicate an ACTIVE loop, and surfaces that loop as related instead
+- skips ones that repeat an ACTIVE loop, and surfaces that loop as related instead
+- flags ACTIVE loops the writer says they've finished (related, finished: true)
 - finds other ACTIVE loops the entry is about ("you mentioned this before")
 returns: { suggestions, related }
 */
 export async function suggestIntentions(userId, entry) {
-    // claim the entry first so two overlapping requests can't both extract
-    const claimed = await prisma.entry.updateMany({
+    // claim the entry so two overlapping requests can't both save suggestions.
+    // the slow LLM/embedding calls start at the same time instead of waiting
+    // on the claim — if the claim loses (a rare retry), their results are
+    // just thrown away. each DB round trip is ~1.3s from Australia to the
+    // us-east-2 database, so not waiting on it is a noticeable win locally.
+    const claim = prisma.entry.updateMany({
         where: { id: entry.id, userId, intentionsExtractedAt: null },
         data: { intentionsExtractedAt: new Date() },
     })
+    const work = prisma.intention.findMany({
+        where: { userId, status: "ACTIVE" },
+        select: { ...intentionSelect, embedding: true },
+        orderBy: { createdAt: "desc" },
+    }).then(activeLoops => Promise.all([
+        extractIntentions(entry.body, { existing: activeLoops }).then(async ({ items, finishedIds }) => ({
+            items: await embedItems(items),
+            finishedIds,
+        })),
+        embedText(entry.body),
+        activeLoops,
+    ]))
+    // the claim is awaited first; don't let a failure in `work` meanwhile
+    // surface as an unhandled rejection
+    work.catch(() => {})
+
+    const claimed = await claim
 
     if (claimed.count === 0) {
         // already extracted (a retry or reload) — return what's still waiting on the user
@@ -53,29 +79,23 @@ export async function suggestIntentions(userId, entry) {
     }
 
     try {
-        const [extracted, entryEmbedding, activeLoops] = await Promise.all([
-            extractIntentions(entry.body),
-            embedText(entry.body),
-            prisma.intention.findMany({
-                where: { userId, status: "ACTIVE" },
-                select: { ...intentionSelect, embedding: true },
-            }),
-        ])
+        const [{ items, finishedIds }, entryEmbedding, activeLoops] = await work
 
-        const embedded = await Promise.all(
-            extracted.map(async item => ({ ...item, embedding: await embedText(item.text) }))
-        )
-
-        const duplicateOf = new Map() // active loop id -> similarity
+        const repeated = new Set() // active loop ids this entry repeats
         const fresh = []
-        for (const item of embedded) {
+        for (const item of items) {
+            if (item.existingId) {
+                repeated.add(item.existingId)
+                continue
+            }
             const { loop, similarity } = closestLoop(item.embedding, activeLoops)
             if (loop && similarity >= SAME_LOOP_THRESHOLD) {
-                duplicateOf.set(loop.id, Math.max(similarity, duplicateOf.get(loop.id) ?? 0))
+                repeated.add(loop.id)
             } else {
                 fresh.push(item)
             }
         }
+        const finished = new Set(finishedIds)
 
         // createMany doesn't return rows on postgres in this prisma version,
         // so create one by one inside a transaction to keep the order
@@ -95,18 +115,19 @@ export async function suggestIntentions(userId, entry) {
             }))
         )
 
-        // loops this entry repeats come first, then ones it's just about
+        // loops the writer says they finished come first, then ones this
+        // entry repeats, then ones it's just about
         const related = activeLoops
             .map(loop => ({
                 loop,
-                score: duplicateOf.has(loop.id)
-                    ? 1 + duplicateOf.get(loop.id)
+                score: finished.has(loop.id) ? 3
+                    : repeated.has(loop.id) ? 2
                     : cosineSimilarity(entryEmbedding, loop.embedding),
             }))
             .filter(({ score }) => score >= RELATED_THRESHOLD)
             .sort((a, b) => b.score - a.score)
             .slice(0, MAX_RELATED)
-            .map(({ loop: { embedding, ...loop } }) => loop)
+            .map(({ loop: { embedding, ...loop } }) => ({ ...loop, finished: finished.has(loop.id) }))
 
         return { suggestions, related }
     } catch (error) {
@@ -117,6 +138,18 @@ export async function suggestIntentions(userId, entry) {
         }).catch(() => {})
         throw error
     }
+}
+
+// all of an entry's items in one embeddings request instead of one each.
+// same model and lowercasing as embedText, so they compare like-for-like
+// with embeddings made elsewhere (e.g. after an edit)
+async function embedItems(items) {
+    if (items.length === 0) return []
+    const res = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: items.map(item => item.text.trim().toLowerCase()),
+    })
+    return items.map((item, i) => ({ ...item, embedding: res.data[i].embedding }))
 }
 
 function closestLoop(embedding, loops) {

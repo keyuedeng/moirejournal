@@ -33,16 +33,24 @@ const green = s => `\x1b[32m${s}\x1b[0m`
 
 const results = await Promise.all(fixtures.map(async f => {
     const rejected = []
-    const actual = await extractIntentions(f.body, { onRejected: (item, reason) => rejected.push({ item, reason }) })
-    return { f, actual, rejected }
+    // fixtures can list the writer's existing open loops as plain strings
+    const existing = (f.existingLoops ?? []).map((text, i) => ({ id: `loop-${i + 1}`, text }))
+    const { items: actual, finishedIds } = await extractIntentions(f.body, {
+        existing,
+        onRejected: (item, reason) => rejected.push({ item, reason }),
+    })
+    const textOf = id => existing.find(loop => loop.id === id)?.text
+    return { f, actual, rejected, finished: finishedIds.map(textOf), textOf }
 }))
 
 let countMatches = 0
-for (const { f, actual, rejected } of results) {
-    const countOk = actual.length === f.expected.length
+for (const { f, actual, rejected, finished, textOf } of results) {
+    // items that repeat an existing loop aren't new, so they don't count
+    const fresh = actual.filter(a => !a.existingId)
+    const countOk = fresh.length === f.expected.length
     if (countOk) countMatches++
 
-    console.log(`\n${bold(f.id)}  ${countOk ? green(`${actual.length} items`) : red(`${actual.length} items, expected ${f.expected.length}`)}`)
+    console.log(`\n${bold(f.id)}  ${countOk ? green(`${fresh.length} new items`) : red(`${fresh.length} new items, expected ${f.expected.length}`)}`)
 
     console.log(dim("  expected:"))
     if (f.expected.length === 0) console.log(dim("    (nothing)"))
@@ -52,9 +60,14 @@ for (const { f, actual, rejected } of results) {
     console.log("  actual:")
     if (actual.length === 0) console.log("    (nothing)")
     for (const a of actual) {
-        console.log(`    ${a.kind.padEnd(4)}  ${a.text}${a.suggestedHorizon ? ` [${a.suggestedHorizon}]` : ""}  ${dim(`conf ${a.confidence}`)}`)
+        const repeats = a.existingId ? `  → repeats "${textOf(a.existingId)}"` : ""
+        console.log(`    ${a.kind.padEnd(4)}  ${a.text}${a.suggestedHorizon ? ` [${a.suggestedHorizon}]` : ""}  ${dim(`conf ${a.confidence}`)}${repeats}`)
         console.log(dim(`          “${a.sourceQuote}”`))
         if (a.suggestedStep) console.log(dim(`          step: ${a.suggestedStep}`))
+    }
+    if (f.existingLoops) {
+        console.log(dim(`  expected repeats: ${(f.expectedRepeats ?? []).join(", ") || "-"} · expected finished: ${(f.expectedFinished ?? []).join(", ") || "-"}`))
+        console.log(`  finished: ${finished.join(", ") || "-"}`)
     }
     if (verbose) {
         for (const { item, reason } of rejected) console.log(red(`    dropped  ${item.kind} ${item.text}  (${reason})`))
@@ -62,4 +75,4 @@ for (const { f, actual, rejected } of results) {
     if (f.shouldNotExtract?.length) console.log(dim(`  should skip: ${f.shouldNotExtract.join(" · ")}`))
 }
 
-console.log(`\n${bold(`${countMatches}/${results.length}`)} entries returned the expected number of items ${dim("(a rough signal — read the output above)")}\n`)
+console.log(`\n${bold(`${countMatches}/${results.length}`)} entries returned the expected number of new items ${dim("(a rough signal — read the output above)")}\n`)

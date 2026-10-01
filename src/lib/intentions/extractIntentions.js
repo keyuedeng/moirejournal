@@ -3,23 +3,64 @@ import { normaliseText } from "@/lib/utils/normaliseText";
 
 const KINDS = ["TASK", "GOAL", "WISH"]
 const HORIZONS = ["WEEK", "MONTH", "SOMEDAY"]
-// 0.6 is where the model parks "maybe" items (e.g. a parent's suggestion
-// the writer hasn't agreed to); real intentions come back at 0.7+
-const MIN_CONFIDENCE = 0.65
+// "maybe" items are filtered by basis ("undecided", "someone_else"), not by
+// confidence — confidence alone couldn't separate a parent's suggestion (0.7)
+// from a real but casual want like "kind of want to learn to surf" (0.6)
+const MIN_CONFIDENCE = 0.6
 // share of a quote's words that must appear in one sentence of the entry
 const QUOTE_MATCH = 0.7
 const MAX_ITEMS = 8
+// how many of the user's open loops the model gets to compare against
+const MAX_EXISTING = 26 // labelled A–Z in the prompt
 
 /*
 extracts "open loops" from a whole journal entry:
 things the writer says THEY want, need or intend to do.
 runs on the whole entry (not per chunk) because an intention
 often spans a few sentences.
-returns: [{ text, sourceQuote, kind, suggestedStep, suggestedHorizon, confidence }]
-most important first
+
+existing: the user's current open loops [{ id, text }]. The model matches new
+items against them by meaning — embeddings alone miss paraphrases of short
+phrases ("start running again" vs "get started on running" is only 0.58) —
+and notices loops the writer says they've now finished.
+
+returns: {
+    items: [{ text, sourceQuote, kind, suggestedStep, suggestedHorizon, confidence, existingId }]
+           most important first; existingId set when it repeats an existing loop
+    finishedIds: ids of existing loops the writer says they've done
+}
 */
-export async function extractIntentions(body, { now = new Date(), onRejected } = {}) {
+export async function extractIntentions(body, { now = new Date(), onRejected, existing = [] } = {}) {
     const today = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
+    const known = existing.slice(0, MAX_EXISTING)
+    // loops are listed as "C: Start running again" and the model copies the
+    // whole line back. matching on the text is what makes this reliable:
+    // numbers alone got miscounted (from 0), letters alone got mixed up
+    // ("A" for the wrong loop), and asking for bare text it often left it null.
+    const label = i => String.fromCharCode(65 + i)
+    const idForLine = value => {
+        if (typeof value !== "string" || !value.trim()) return null
+        const [, letter, text] = value.trim().match(/^([A-Za-z])\s*[:.)-]\s*(.*)$/) ?? [null, null, value]
+        const byText = closestByWords(text, known)
+        if (byText) return byText.id
+        const i = letter ? letter.toUpperCase().charCodeAt(0) - 65 : -1
+        return known[i]?.id ?? null
+    }
+    // backstop: an item worded exactly like an existing loop is that loop
+    const idForSameText = text => known.find(loop => clean(loop.text) === clean(text ?? ""))?.id ?? null
+
+    const existingSection = known.length === 0 ? "" : `
+THE WRITER'S CURRENT OPEN LOOPS (from earlier entries)
+${known.map((loop, i) => `${label(i)}: ${loop.text}`).join("\n")}
+
+- "existing" on an item: if it is the same intention as one of these loops, even worded differently
+  ("get started on running" = "Start running again"), that loop's whole line, e.g. "C: Start running again".
+  Otherwise null.
+  Similar is not the same: "Book a haircut" is NOT "Book a dentist appointment".
+- "finished": the whole line of each of these loops the writer says they have now DONE
+  ("finally emailed my tutor"). Only when they clearly say it's done. Not done yet, haven't started,
+  or just mentioning it ("didn't go running yet") is NOT finished.
+`
 
     const prompt =
 `
@@ -32,6 +73,9 @@ For each candidate return:
 - "basis": decide this FIRST. Whose intention is it, really?
     • "writer" = the writer says in their own words that THEY want, need, plan or intend to do it
     • "someone_else" = it is another person's idea, request, plan or opinion, and the writer hasn't clearly taken it on
+    • "undecided" = the writer is only considering it and hasn't decided ("I guess I'll think about it",
+      "not committing yet", "not sure if I'll go"). Wanting something, even casually, is NOT undecided:
+      "kind of want to learn to surf" is "writer".
     • "problem_only" = the writer describes a problem or feeling but never says they want to do something about it
 - "text": a short imperative in the writer's own terms, max 8 words ("Book a haircut", "Get back into hobbies").
   It must make sense on its own weeks later, without the entry: "Book a uni counselling session", not "Book a session".
@@ -63,7 +107,9 @@ DO NOT include:
 - invitations or other people's plans the writer is still undecided about ("not sure if I'll go", "not committing yet")
 - other people's actions or plans
 - conditional plans that depend on something that hasn't happened ("if I get the job I'll move out")
-- plans for the next few hours, right as they write ("time to lock in", "going to bed", "starting with one question today")
+- plans for later TODAY or the next few hours, right as they write ("time to lock in", "going to bed",
+  "I have work to get through today", "starting with one question today") — by the time a reminder
+  could help, it's already done or not. "Tomorrow" or later is fine.
 - routine chores with no reason to be reminded ("groceries")
 - goals the writer did not state: never infer a goal from a complaint ("I sit at my desk all day" is NOT "move more")
 - health, eating, sleep or mental-health goals the writer did not state as something they want to do.
@@ -71,16 +117,21 @@ DO NOT include:
   Never diagnose, label or give advice.
 
 Keep the writer's words and tone. No clinical, coaching or motivational language.
-When one sentence lists several distinct things ("I need to work on X, Y and Z"), make one item per thing.
+When one sentence lists several concrete, distinct things ("I need to work on X, Y and Z"), make one item per thing.
+Several vague phrases about the same feeling or direction are ONE wish, not several
+("I need to get my life together and figure things out and just be better" = one WISH).
 Merge items only when they are the same intention.
 
 EXAMPLES (not from this entry)
 - "My sister keeps telling me I need to start saving. Maybe, idk." → basis "someone_else"
+- "My sister thinks I should start saving. I'll think about it." → basis "undecided"
 - "My sister keeps telling me I need to start saving and she's right, I'm putting $50 aside every payday." → GOAL "Save $50 every payday"
 - "I haven't been sleeping well at all lately." → basis "problem_only"
 - "I want to fix my sleep, I'm going to try no screens after 11." → GOAL "Fix my sleep", suggestedStep "No screens after 11pm"
 - "I need to sort out my uni stuff, my job applications and my room." → three items, one each
-- "Need to figure out what I actually want to do after uni." → WISH, not TASK Return at most ${MAX_ITEMS}, most important first
+- "Need to figure out what I actually want to do after uni." → WISH, not TASK
+${existingSection}
+Return at most ${MAX_ITEMS} items, most important first
 (things with a near deadline first, then explicit "I need to" items, then wishes).
 Returning an empty list is completely fine when the entry has no open loops.
 
@@ -89,8 +140,9 @@ Return ONLY valid JSON. No backticks no prefix/suffix.
 Format:
 {
     "items": [
-        { "basis": "writer"|"someone_else"|"problem_only", "text": string, "sourceQuote": string, "kind": "TASK"|"GOAL"|"WISH", "suggestedStep": string|null, "suggestedHorizon": "WEEK"|"MONTH"|"SOMEDAY"|null, "confidence": number }
-    ]
+        { "basis": "writer"|"someone_else"|"undecided"|"problem_only", "text": string, "sourceQuote": string, "kind": "TASK"|"GOAL"|"WISH", "suggestedStep": string|null, "suggestedHorizon": "WEEK"|"MONTH"|"SOMEDAY"|null, "confidence": number, "existing": string|null }
+    ],
+    "finished": [string]
 }
 
 Journal entry:
@@ -98,17 +150,23 @@ Journal entry:
 ${body}
 """
 `
+    // gpt-5.4-mini beat gpt-4o-mini on the fixtures (other people's ideas,
+    // inferred health goals, conditionals) and is faster (~2.4s vs ~3.1s).
+    // INTENTIONS_MODEL lets the fixture script compare models.
+    const model = process.env.INTENTIONS_MODEL || "gpt-5.4-mini"
     const result = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        temperature: 0.2,
+        model,
+        // gpt-5 models only accept the default temperature
+        ...(!model.startsWith("gpt-5") && { temperature: 0.2 }),
         response_format: { type: "json_object" },
         messages: [{ role: "user", content: prompt }],
     })
 
     const parsed = JSON.parse(result.choices[0].message.content)
     const items = Array.isArray(parsed.items) ? parsed.items : []
+    const finishedIds = [...new Set((Array.isArray(parsed.finished) ? parsed.finished : []).map(idForLine).filter(Boolean))]
 
-    return items
+    const kept = items
         .map(item => ({ ...item, sourceQuote: findQuote(item?.sourceQuote, body) }))
         .filter(item => {
             const reason = rejectionReason(item, body)
@@ -124,7 +182,10 @@ ${body}
             suggestedStep: item.suggestedStep?.trim() || null,
             suggestedHorizon: HORIZONS.includes(item.suggestedHorizon) ? item.suggestedHorizon : null,
             confidence: item.confidence,
+            existingId: idForLine(item.existing) ?? idForSameText(item.text),
         }))
+
+    return { items: kept, finishedIds }
 }
 
 // returns why an item should be dropped, or null if it's fine
@@ -137,6 +198,24 @@ function rejectionReason(item, body) {
     if (typeof item.confidence !== "number" || item.confidence < MIN_CONFIDENCE) return `low confidence: ${item.confidence}`
     if (!item.sourceQuote) return "quote not found in entry"
     return null
+}
+
+// the loop whose words best cover `text` (most of the loop's words appear
+// in it), or null if none is close enough
+function closestByWords(text, loops) {
+    const words = new Set(clean(text ?? "").split(" ").filter(Boolean))
+    if (words.size === 0) return null
+    let best = null
+    let bestScore = 0
+    for (const loop of loops) {
+        const loopWords = clean(loop.text).split(" ").filter(Boolean)
+        const score = loopWords.filter(w => words.has(w)).length / loopWords.length
+        if (score > bestScore) {
+            best = loop
+            bestScore = score
+        }
+    }
+    return bestScore >= QUOTE_MATCH ? best : null
 }
 
 function capitalise(s) {
