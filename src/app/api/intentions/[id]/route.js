@@ -19,6 +19,7 @@ body: { action, ...fields }
 - confirm   { horizon, dueAt?, nextCheckInAt?, text?, useSuggestedStep? }  SUGGESTED -> ACTIVE
 - dismiss   "not a to-do"                                                   SUGGESTED -> DISMISSED
 - done / drop                                                               -> DONE / DROPPED
+- reopen    undo a done/drop (the panel's checkbox has an undo)               -> ACTIVE
 - snooze    { until }
 - keep      "still on it" — counts as an interaction, nothing else changes
 - checkIn   { nextCheckInAt }  goal check-in, schedules the next one
@@ -74,6 +75,10 @@ export async function PATCH(request, { params }) {
                 break
             case "drop":
                 data.status = "DROPPED"
+                break
+            case "reopen":
+                data.status = "ACTIVE"
+                data.completedAt = null
                 break
             case "snooze": {
                 const until = parseDate(body.until)

@@ -1,16 +1,20 @@
 import './globals.css'
-import { Inter, Cormorant_Garamond } from 'next/font/google'
+import { Lato, Cormorant_Garamond } from 'next/font/google'
 import { ClerkProvider } from '@clerk/nextjs'
 
-const inter = Inter({ 
+// the app's only two fonts: Lato for interface/body text, Cormorant for
+// headings and the user's own words (quotes, entry titles)
+const lato = Lato({
   subsets: ['latin'],
-  variable: '--font-inter',
+  variable: '--font-lato',
+  weight: ['300', '400', '700'],
+  style: ['normal', 'italic'],
 })
 
 const cormorantGaramond = Cormorant_Garamond({
   subsets: ['latin'],
   variable: '--font-cormorant',
-  weight: ['300', '400', '500', '600'],
+  weight: ['400', '500', '600'],
   style: ['normal', 'italic'],
 })
 
@@ -24,9 +28,23 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <ClerkProvider>
-      <html lang="en">
-        <body className={`${inter.variable} ${cormorantGaramond.variable} font-sans antialiased`}>{children}</body>
+    <ClerkProvider
+      appearance={{
+        variables: {
+          colorPrimary: '#7F5B70',
+          colorBackground: '#FFFFFF',
+          colorText: '#262322',
+          colorTextSecondary: '#5F5A57',
+          colorInputBackground: '#FFFFFF',
+          colorInputText: '#262322',
+          fontFamily: 'var(--font-lato)',
+          borderRadius: '0.75rem',
+        },
+      }}
+    >
+      {/* font variables live on <html> so the theme's --font-sans / --font-display (defined at the root) can see them */}
+      <html lang="en" className={`${lato.variable} ${cormorantGaramond.variable}`}>
+        <body className="font-sans antialiased">{children}</body>
       </html>
     </ClerkProvider>
   )

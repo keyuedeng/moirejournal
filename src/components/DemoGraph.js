@@ -21,39 +21,39 @@ export default function DemoGraph() {
     const mockData = useMemo(() => ({
         nodes: [
             // Core values (center, largest - most important) - removed fx/fy to allow movement
-            { id: 1, label: "authenticity", count: 12, color: "#94a3b8" },
-            { id: 2, label: "growth", count: 10, color: "#94a3b8" },
+            { id: 1, label: "authenticity", count: 12, color: "#A6939E" },
+            { id: 2, label: "growth", count: 10, color: "#A6939E" },
             
             // Personal development branch (strong theme)
-            { id: 3, label: "learning", count: 7, color: "#94a3b8" },
-            { id: 4, label: "journaling", count: 8, color: "#94a3b8" },
-            { id: 5, label: "meditation", count: 5, color: "#94a3b8" },
-            { id: 6, label: "self-awareness", count: 6, color: "#94a3b8" },
+            { id: 3, label: "learning", count: 7, color: "#A6939E" },
+            { id: 4, label: "journaling", count: 8, color: "#A6939E" },
+            { id: 5, label: "meditation", count: 5, color: "#A6939E" },
+            { id: 6, label: "self-awareness", count: 6, color: "#A6939E" },
             
             // Relationships branch (very important)
-            { id: 7, label: "connection", count: 9, color: "#94a3b8" },
-            { id: 8, label: "friendship", count: 6, color: "#94a3b8" },
-            { id: 9, label: "vulnerability", count: 7, color: "#94a3b8" },
-            { id: 10, label: "mom", count: 8, color: "#94a3b8" },
-            { id: 21, label: "sister", count: 5, color: "#94a3b8" },
+            { id: 7, label: "connection", count: 9, color: "#A6939E" },
+            { id: 8, label: "friendship", count: 6, color: "#A6939E" },
+            { id: 9, label: "vulnerability", count: 7, color: "#A6939E" },
+            { id: 10, label: "mom", count: 8, color: "#A6939E" },
+            { id: 21, label: "sister", count: 5, color: "#A6939E" },
             
             // Creative interests branch (moderate-strong)
-            { id: 11, label: "creativity", count: 8, color: "#94a3b8" },
-            { id: 12, label: "photography", count: 6, color: "#94a3b8" },
-            { id: 13, label: "writing", count: 7, color: "#94a3b8" },
-            { id: 14, label: "art", count: 4, color: "#94a3b8" },
+            { id: 11, label: "creativity", count: 8, color: "#A6939E" },
+            { id: 12, label: "photography", count: 6, color: "#A6939E" },
+            { id: 13, label: "writing", count: 7, color: "#A6939E" },
+            { id: 14, label: "art", count: 4, color: "#A6939E" },
             
             // Career/purpose branch (emerging theme)
-            { id: 15, label: "purpose", count: 6, color: "#94a3b8" },
-            { id: 16, label: "impact", count: 5, color: "#94a3b8" },
-            { id: 17, label: "career-change", count: 4, color: "#94a3b8" },
-            { id: 22, label: "teaching", count: 3, color: "#94a3b8" },
+            { id: 15, label: "purpose", count: 6, color: "#A6939E" },
+            { id: 16, label: "impact", count: 5, color: "#A6939E" },
+            { id: 17, label: "career-change", count: 4, color: "#A6939E" },
+            { id: 22, label: "teaching", count: 3, color: "#A6939E" },
             
             // Wellness branch (consistent practice)
-            { id: 18, label: "balance", count: 7, color: "#94a3b8" },
-            { id: 19, label: "yoga", count: 6, color: "#94a3b8" },
-            { id: 20, label: "nature", count: 5, color: "#94a3b8" },
-            { id: 23, label: "hiking", count: 4, color: "#94a3b8" },
+            { id: 18, label: "balance", count: 7, color: "#A6939E" },
+            { id: 19, label: "yoga", count: 6, color: "#A6939E" },
+            { id: 20, label: "nature", count: 5, color: "#A6939E" },
+            { id: 23, label: "hiking", count: 4, color: "#A6939E" },
         ],
         links: [
             // Core connections (strongest - shortest distance)
@@ -195,7 +195,7 @@ export default function DemoGraph() {
                                 
                                 ctx.beginPath()
                                 ctx.arc(node.x + floatX, node.y + floatY, radius, 0, 2 * Math.PI)
-                                ctx.strokeStyle = `rgba(148, 163, 184, ${opacity * 0.5})`
+                                ctx.strokeStyle = `rgba(166, 147, 158, ${opacity * 0.5})`
                                 ctx.lineWidth = 3
                                 ctx.stroke()
                                 
@@ -205,7 +205,7 @@ export default function DemoGraph() {
                                     const opacity2 = 1 - (progress - 0.15) * 1.2
                                     ctx.beginPath()
                                     ctx.arc(node.x + floatX, node.y + floatY, radius2, 0, 2 * Math.PI)
-                                    ctx.strokeStyle = `rgba(148, 163, 184, ${opacity2 * 0.4})`
+                                    ctx.strokeStyle = `rgba(166, 147, 158, ${opacity2 * 0.4})`
                                     ctx.lineWidth = 2
                                     ctx.stroke()
                                 }
@@ -215,7 +215,7 @@ export default function DemoGraph() {
                     
                     ctx.beginPath()
                     ctx.arc(node.x + floatX, node.y + floatY, size, 0, 2 * Math.PI)
-                    ctx.fillStyle = node.color || '#94a3b8'
+                    ctx.fillStyle = node.color || '#A6939E'
                     ctx.fill()
                     
                     // Show label only for important nodes (count >= 7) or on hover
@@ -227,7 +227,7 @@ export default function DemoGraph() {
                         ctx.font = `${fontSize}px Sans-Serif`
                         ctx.textAlign = 'center'
                         ctx.textBaseline = 'middle'
-                        ctx.fillStyle = '#64748b'
+                        ctx.fillStyle = '#5F5A57'
                         ctx.fillText(label, node.x + floatX, node.y + floatY + size + 8)
                     }
                 }}

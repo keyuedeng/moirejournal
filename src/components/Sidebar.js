@@ -1,12 +1,13 @@
 "use client"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { NotebookPen, Orbit, Menu, X, ChevronDown } from "lucide-react"
+import { NotebookPen, Orbit, CircleDashed, Menu, X, ChevronDown } from "lucide-react"
 import { useUser, useClerk } from '@clerk/nextjs'
 import { useState, useEffect, useRef } from 'react'
 
 const NAV_LINKS = [
     { href: "/journal", label: "Journal", icon: NotebookPen },
+    { href: "/loops", label: "Open Loops", icon: CircleDashed },
     { href: "/map", label: "My Fragments", icon: Orbit },
 ]
 
@@ -53,12 +54,12 @@ export default function Sidebar() {
     return (
         <>
             {/* mobile top bar */}
-            <div className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between px-4 py-3 bg-stone-100/80 backdrop-blur-sm border-b border-stone-200">
-                <span className="font-[family-name:var(--font-cormorant)] text-xl font-semibold text-neutral-700">Moire</span>
+            <div className="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between px-4 py-3 bg-stone-100/90 backdrop-blur-sm border-b border-line">
+                <span className="font-display italic text-2xl font-medium text-ink">Moiré</span>
                 <button
                     onClick={() => setMobileOpen(true)}
                     aria-label="Open menu"
-                    className="p-2 rounded-md hover:bg-neutral-200/50 text-neutral-700"
+                    className="p-2 rounded-lg hover:bg-hush text-soft"
                 >
                     <Menu className="w-5 h-5" />
                 </button>
@@ -76,20 +77,20 @@ export default function Sidebar() {
             <aside
                 className={`
                     fixed md:static inset-y-0 left-0 z-50 w-72 md:w-64 h-screen
-                    flex flex-col bg-stone-100/50 border-r border-stone-200
+                    flex flex-col bg-stone-100 border-r border-line
                     transform transition-transform duration-300 ease-in-out
                     ${mobileOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0
                 `}
             >
-                <div className="p-4 flex flex-col flex-1 min-h-0">
-                    <div className="flex items-center justify-between mb-1">
-                        <span className="hidden md:block font-[family-name:var(--font-cormorant)] text-xl font-semibold text-neutral-700 px-3 pt-1">
-                            Moire
+                <div className="px-4 py-6 flex flex-col flex-1 min-h-0">
+                    <div className="flex items-center justify-between mb-5">
+                        <span className="hidden md:block font-display italic text-[28px] leading-none font-medium text-ink px-3">
+                            Moiré
                         </span>
                         <button
                             onClick={() => setMobileOpen(false)}
                             aria-label="Close menu"
-                            className="md:hidden p-2 rounded-md hover:bg-neutral-200/50 text-neutral-700"
+                            className="md:hidden p-2 rounded-lg hover:bg-hush text-soft"
                         >
                             <X className="w-5 h-5" />
                         </button>
@@ -100,21 +101,24 @@ export default function Sidebar() {
                             onClick={() => setShowPopup(!showPopup)}
                             aria-haspopup="menu"
                             aria-expanded={showPopup}
-                            className="w-full flex items-center justify-between px-3 py-3 hover:bg-neutral-200/50 rounded-md transition-colors font-semibold text-lg cursor-pointer text-neutral-700"
+                            className="w-full flex items-center gap-3 px-3 py-2 hover:bg-hush rounded-xl transition-colors cursor-pointer"
                         >
-                            <span className="truncate font-[family-name:var(--font-cormorant)]">{displayName}</span>
-                            <ChevronDown className={`w-4 h-4 shrink-0 text-neutral-400 transition-transform ${showPopup ? 'rotate-180' : ''}`} />
+                            <span className="w-7 h-7 rounded-full bg-brand-soft text-brand-deep text-xs flex items-center justify-center shrink-0 uppercase">
+                                {displayName.charAt(0)}
+                            </span>
+                            <span className="flex-1 min-w-0 truncate text-left text-sm text-soft">{displayName}</span>
+                            <ChevronDown className={`w-4 h-4 shrink-0 text-faint transition-transform ${showPopup ? 'rotate-180' : ''}`} />
                         </button>
 
                         {showPopup && (
                             <div
                                 role="menu"
-                                className="absolute top-full mt-2 left-0 right-0 bg-white border border-stone-200 rounded-md shadow-lg p-1 z-10"
+                                className="absolute top-full mt-2 left-0 right-0 bg-surface border border-line rounded-xl shadow-soft p-1 z-10"
                             >
                                 <button
                                     role="menuitem"
                                     onClick={() => signOut()}
-                                    className="w-full text-left px-3 py-2 text-sm text-neutral-600 hover:bg-stone-100 rounded-md font-[family-name:var(--font-cormorant)]"
+                                    className="w-full text-left px-3 py-2 text-sm text-soft hover:bg-hush rounded-lg"
                                 >
                                     Logout
                                 </button>
@@ -122,7 +126,7 @@ export default function Sidebar() {
                         )}
                     </div>
 
-                    <nav className="flex flex-col space-y-1 mt-2">
+                    <nav className="flex flex-col space-y-0.5 mt-5">
                         {NAV_LINKS.map(({ href, label, icon: Icon }) => {
                             const active = pathname === href
                             return (
@@ -130,21 +134,21 @@ export default function Sidebar() {
                                     key={href}
                                     href={href}
                                     aria-current={active ? "page" : undefined}
-                                    className={`flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors ${
                                         active
-                                            ? "bg-[#b88998]/15 text-[#8a6270] font-medium"
-                                            : "text-neutral-700 hover:bg-neutral-200/50"
+                                            ? "bg-surface text-ink shadow-soft"
+                                            : "text-soft hover:bg-hush"
                                     }`}
                                 >
-                                    <Icon className="w-4 h-4 shrink-0" />
-                                    <span className="font-[family-name:var(--font-cormorant)]">{label}</span>
+                                    <Icon className={`w-4 h-4 shrink-0 ${active ? "text-brand" : "text-faint"}`} />
+                                    <span>{label}</span>
                                 </Link>
                             )
                         })}
                     </nav>
 
                     <div className="mt-auto pt-6 pb-2 text-center select-none">
-                        <p className="text-[11px] text-neutral-400 italic font-[family-name:var(--font-cormorant)]">
+                        <p className="text-xs text-faint italic">
                             grow quietly
                         </p>
                     </div>

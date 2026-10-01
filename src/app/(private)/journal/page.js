@@ -73,16 +73,16 @@ function buildActivityWeeks(entries) {
 }
 
 function activityColor(count) {
-    if (count === 0) return "bg-stone-200/70"
-    if (count === 1) return "bg-[#b88998]/35"
-    if (count === 2) return "bg-[#b88998]/65"
-    return "bg-[#b88998]"
+    if (count === 0) return "bg-hush"
+    if (count === 1) return "bg-brand/35"
+    if (count === 2) return "bg-brand/65"
+    return "bg-brand"
 }
 
 export default function JournalPage() {
     // useSearchParams requires a Suspense boundary in the app router
     return (
-        <Suspense fallback={<div className="p-6 md:p-8 min-h-screen bg-gradient-to-br from-stone-100/50 via-slate-50/40 to-neutral-100/50" />}>
+        <Suspense fallback={<div className="p-6 md:p-8 min-h-screen bg-page" />}>
             <JournalPageInner />
         </Suspense>
     )
@@ -93,13 +93,6 @@ function JournalPageInner() {
     const searchParams = useSearchParams()
     const openEntryId = searchParams.get('entry')
     const today = new Date()
-    const options = {
-        weekday: "long",
-        year: "numeric",
-        month:"long",
-        day: "numeric"
-    }
-    const formatted = today.toLocaleDateString("en-US", options)
     const [entries, setEntries] = useState(entriesCache ?? [])
     const [loading, setLoading] = useState(entriesCache === null)
     const [entriesError, setEntriesError] = useState(false)
@@ -366,12 +359,13 @@ function JournalPageInner() {
     const hour = today.getHours();
     let greeting;
     if (hour >= 0 && hour <= 11) {
-        greeting = "Good morning, "
+        greeting = "good morning"
     } else if (hour > 11 && hour < 17) {
-        greeting = "Good afternoon, "
+        greeting = "good afternoon"
     } else {
-        greeting = "Good evening, "
+        greeting = "good evening"
     }
+    const firstName = user?.firstName || user?.emailAddresses[0]?.emailAddress?.split('@')[0]
 
     const realEntries = useMemo(() => entries.filter(e => !e.saving), [entries])
     const streak = useMemo(() => computeStreak(realEntries), [realEntries])
@@ -385,27 +379,32 @@ function JournalPageInner() {
 
     //render form + list
     return (
-        <div className="p-6 md:p-8 bg-gradient-to-br from-stone-100/50 via-slate-50/40 to-neutral-100/50 min-h-screen">
+        <div className="p-6 md:p-8 bg-page min-h-screen">
             <div className="max-w-7xl mx-auto xl:flex xl:gap-10 xl:items-start">
             <div className="w-full max-w-3xl mx-auto xl:max-w-4xl xl:mx-0 xl:flex-1 xl:min-w-0">
-                <div className="mb-4 flex items-baseline justify-between flex-wrap gap-x-4 gap-y-1">
-                    <h1 className="text-2xl font-semibold text-neutral-700 font-[family-name:var(--font-cormorant)]">{greeting}{user?.firstName || user?.emailAddresses[0]?.emailAddress?.split('@')[0]}</h1>
+                {/* like a desk calendar: the day is the headline, the greeting a quiet line */}
+                <div className="mb-7 flex items-end justify-between flex-wrap gap-x-6 gap-y-2">
+                    <h1 className="flex items-end gap-4">
+                        <span className="font-display text-[76px] leading-[0.78] text-brand">{today.getDate()}</span>
+                        <span className="pb-0.5">
+                            <span className="block font-display text-[32px] leading-none font-medium text-ink">
+                                {today.toLocaleDateString("en-US", { weekday: "long" })}
+                            </span>
+                            <span className="block text-sm text-faint mt-1.5">
+                                {today.toLocaleDateString("en-US", { month: "long" })}
+                                {firstName && ` · ${greeting}, ${firstName}`}
+                            </span>
+                        </span>
+                    </h1>
                     {realEntries.length > 0 && (
-                        <p className="text-sm text-neutral-400">
+                        <p className="text-sm text-faint pb-0.5">
                             {realEntries.length} {realEntries.length === 1 ? 'entry' : 'entries'}
                             {streak >= 2 && ` · ${streak}-day streak`}
                             {earliestDate && ` · since ${earliestDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
                         </p>
                     )}
                 </div>
-                <OpenLoops data={openLoops} onChanged={loadOpenLoops} onWriteAbout={writeAbout} />
-                <div
-                    className="border border-stone-200 rounded-xl p-4 mb-6 shadow-sm bg-white/80"
-                    style={{
-                        backgroundImage: 'radial-gradient(circle, rgba(120,113,108,0.05) 1px, transparent 1px)',
-                        backgroundSize: '16px 16px',
-                    }}
-                >
+                <div className="border border-line rounded-2xl p-6 mb-8 shadow-soft bg-surface">
                     {postEntry ? (
                         <PostEntryCard
                             key={postEntry.key}
@@ -414,12 +413,10 @@ function JournalPageInner() {
                             onChange={loadOpenLoops}
                         />
                     ) : (
-                    <>
-                    <h2 className="pb-3 text-neutral-600">Today · {formatted}</h2>
                     <form onSubmit={handleSubmit}>
                         <input
                             type="text"
-                            placeholder="New Entry"
+                            placeholder="Give today a title…"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
                             onKeyDown={(e) => {
@@ -429,7 +426,8 @@ function JournalPageInner() {
                                 }
                             }}
                             ref={titleInputRef}
-                            className="w-full text-2xl focus:outline-none pb-3 font-semibold text-neutral-700"
+                            aria-label="Entry title"
+                            className="w-full text-[24px] font-normal tracking-[-0.01em] focus:outline-none pb-1.5 text-ink placeholder:text-stone-400 bg-transparent"
                         />
                         <TextareaAutosize
                             minRows={2}
@@ -448,22 +446,25 @@ function JournalPageInner() {
                                     e.currentTarget.form?.requestSubmit()
                                 }
                             }}
-                            className="w-full focus:outline-none resize-none overflow-y-auto leading-relaxed text-neutral-700 text-lg placeholder:text-neutral-400"
-                            style = {{ lineHeight: "1.6" }}
+                            aria-label="Entry"
+                            className="w-full min-h-28 focus:outline-none resize-none overflow-y-auto text-ink text-base placeholder:text-stone-400 bg-transparent"
+                            style = {{ lineHeight: "1.7" }}
                         />
-                        <button
-                            type="submit"
-                            disabled={!body.trim()}
-                            title={!body.trim() ? "Write something first" : "Save entry (⌘+Enter)"}
-                            className={`${
-                                !body.trim()
-                                ? "bg-stone-50 text-stone-300"
-                                : "bg-[#b88998]/15 hover:bg-[#b88998]/25 cursor-pointer text-[#8a6270]"
-                            } self-end text-sm p-1 px-3 rounded-xl border border-stone-300 transition-colors`}>
-                            Save
-                        </button>
+                        <div className="flex items-center justify-between gap-4 pt-4 mt-2 border-t border-hush">
+                            <p className="text-xs text-faint">⌘ Enter to save</p>
+                            <button
+                                type="submit"
+                                disabled={!body.trim()}
+                                title={!body.trim() ? "Write something first" : "Save entry (⌘+Enter)"}
+                                className={`${
+                                    !body.trim()
+                                    ? "bg-hush text-faint cursor-default"
+                                    : "bg-brand hover:bg-brand-deep text-white cursor-pointer"
+                                } text-sm px-5 py-2 rounded-full transition-colors`}>
+                                Save entry
+                            </button>
+                        </div>
                     </form>
-                    </>
                     )}
 
                     {/* Status popup */}
@@ -471,11 +472,11 @@ function JournalPageInner() {
                         <div
                             role="status"
                             aria-live="polite"
-                            className="fixed bottom-8 right-8 flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-md border border-stone-200 bg-white/95 backdrop-blur-sm text-sm text-neutral-600 transition-all animate-in fade-in slide-in-from-bottom-2"
+                            className="fixed bottom-8 right-8 flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-soft border border-line bg-surface text-sm text-soft transition-all animate-in fade-in slide-in-from-bottom-2"
                         >
                             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                                 saveStatus === "saving" ? "bg-neutral-400 animate-pulse" :
-                                saveStatus === "success" ? "bg-[#b88998]" :
+                                saveStatus === "success" ? "bg-brand" :
                                 "bg-red-400"
                             }`} />
                             {saveStatus === "saving" && "Saving..."}
@@ -487,12 +488,13 @@ function JournalPageInner() {
 
                 {/* below xl, the rail collapses into this inline stack instead */}
                 <div className="xl:hidden">
+                    <OpenLoops data={openLoops} onChanged={loadOpenLoops} onWriteAbout={writeAbout} className="mb-6" />
                     <ActivityStrip entries={realEntries} />
                     <RecurringThemes />
                 </div>
 
                 {!loading && !entriesError && entries.length > 0 && (
-                    <h2 className="text-sm font-medium text-neutral-500 mb-2 px-1">Your entries</h2>
+                    <h2 className="font-display text-[26px] font-medium text-ink mb-3 px-1">Your entries</h2>
                 )}
                 {loading ? (
                     <div className="text-neutral-400 text-sm px-1">Loading entries...</div>
@@ -501,7 +503,7 @@ function JournalPageInner() {
                         <p className="text-neutral-500">Couldn't load your entries.</p>
                         <button
                             onClick={loadEntries}
-                            className="text-sm px-4 py-1.5 rounded-full border border-stone-300 text-neutral-600 hover:bg-stone-100 transition"
+                            className="text-sm px-4 py-1.5 rounded-full border border-line text-soft hover:bg-hush transition"
                         >
                             Try again
                         </button>
@@ -510,12 +512,12 @@ function JournalPageInner() {
                     <div>
                     {entries.length === 0 ? (
                         <div className="flex flex-col items-center gap-3 py-16 text-center select-none">
-                            <p className="text-neutral-500">
+                            <p className="italic text-base text-soft">
                                 Your story starts with a single entry.
                             </p>
                         </div>
                     ) : (
-                        <ul className="border border-stone-200 rounded-xl bg-white/60 overflow-hidden">
+                        <ul className="border border-line rounded-2xl bg-surface shadow-soft overflow-hidden divide-y divide-hush">
                             {entries.map((entry) => (
                                 <JournalEntryItem
                                     key={entry.id}
@@ -532,10 +534,11 @@ function JournalPageInner() {
 
             {/* rail: only on xl+, where there's genuinely spare width to use */}
             <aside className="hidden xl:block w-72 shrink-0 sticky top-8 space-y-6">
+                <OpenLoops data={openLoops} onChanged={loadOpenLoops} onWriteAbout={writeAbout} />
                 <RailCard title="Your rhythm">
                     <ActivityStrip entries={realEntries} compact />
                 </RailCard>
-                <RailCard title="Recurring themes">
+                <RailCard title="You keep returning to">
                     <RecurringThemes compact />
                 </RailCard>
             </aside>
@@ -546,8 +549,8 @@ function JournalPageInner() {
 
 function RailCard({ title, children }) {
     return (
-        <div className="border border-stone-200 rounded-xl p-4 bg-white/80 backdrop-blur-sm shadow-sm">
-            <h3 className="text-xs font-medium text-neutral-500 mb-3 uppercase tracking-wide">{title}</h3>
+        <div className="border border-line rounded-2xl p-5 bg-surface shadow-soft">
+            <h3 className="font-display text-xl font-medium text-ink mb-3">{title}</h3>
             {children}
         </div>
     )
@@ -612,9 +615,9 @@ function RecurringThemes({ compact = false }) {
 
     return (
         <div className={compact ? "flex flex-wrap gap-1.5" : "mb-6 flex items-center gap-2 flex-wrap px-1"}>
-            {!compact && <span className="text-xs text-neutral-400 shrink-0">You keep returning to</span>}
+            {!compact && <span className="text-sm text-faint shrink-0">You keep returning to</span>}
             {themes.map(t => (
-                <span key={t.id} className="text-xs px-2.5 py-1 bg-[#b88998]/10 rounded-full text-[#8a6270] capitalize">
+                <span key={t.id} className="text-sm px-3 py-1 border border-line rounded-full text-soft capitalize">
                     {t.label}
                 </span>
             ))}
@@ -652,19 +655,19 @@ function JournalEntryItem({ entry, onDelete, autoOpen = false }) {
                 <DialogTrigger asChild>
                     <button
                         disabled={entry.saving}
-                        className="w-full flex justify-between items-center border-t border-stone-200 first:border-t-0 px-4 py-2.5 hover:bg-stone-100/50 transition disabled:hover:bg-transparent disabled:cursor-default"
+                        className="w-full flex justify-between items-center px-5 py-3.5 hover:bg-hush/60 transition disabled:hover:bg-transparent disabled:cursor-default"
                     >
-                        <div className="flex items-center gap-2 min-w-0 text-neutral-700">
-                            <span className="text-xs text-neutral-400 tabular-nums shrink-0">
+                        <div className="flex items-baseline gap-3 min-w-0 text-ink">
+                            <span className="text-xs text-faint tabular-nums shrink-0 w-12 text-left">
                                 {new Date(entry.createdAt).toLocaleDateString("en-US", {
                                     month: "short",
                                     day: "2-digit",
                                 })}
                             </span>
                             {entry.title === "" ? (
-                                <span className="text-neutral-500 truncate">{entry.body.split(' ').slice(0,7).join(' ')}{"..."}</span>
+                                <span className="italic text-[15px] text-soft truncate">{entry.body.split(' ').slice(0,7).join(' ')}{"…"}</span>
                             ) : (
-                                <span className="font-medium text-neutral-800 truncate">{entry.title}</span>
+                                <span className="text-[15px] font-bold text-ink truncate">{entry.title}</span>
                             )}
                             {entry.saving && (
                                 <span className="flex items-center gap-1 text-[11px] text-neutral-400 shrink-0">
@@ -673,8 +676,8 @@ function JournalEntryItem({ entry, onDelete, autoOpen = false }) {
                                 </span>
                             )}
                             {!entry.saving && entry.status === "PENDING" && (
-                                <span className="flex items-center gap-1 text-[11px] text-[#b88998] shrink-0">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#b88998] animate-pulse" />
+                                <span className="flex items-center gap-1 text-[11px] text-brand shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
                                     processing
                                 </span>
                             )}
@@ -688,20 +691,20 @@ function JournalEntryItem({ entry, onDelete, autoOpen = false }) {
                                 </span>
                             )}
                         </div>
-                        {!entry.saving && <ArrowUpRight className="w-4 h-4 text-neutral-400 shrink-0" />}
+                        {!entry.saving && <ArrowUpRight className="w-4 h-4 text-stone-300 shrink-0" />}
                     </button>
                 </DialogTrigger>
                 <DialogContent className="!max-w-[calc(100%-2rem)] sm:!max-w-2xl !h-[90vh] sm:!h-[85vh] overflow-y-auto flex flex-col">
                     <DialogHeader className="p-6 space-y-4 flex-1">
-                        <DialogTitle className="text-3xl font-[family-name:var(--font-cormorant)] font-semibold text-neutral-800">{entry.title}</DialogTitle>
-                        <DialogDescription className="text-sm text-neutral-500">
+                        <DialogTitle className="text-[34px] leading-tight font-display font-medium text-ink">{entry.title}</DialogTitle>
+                        <DialogDescription className="text-sm text-faint">
                             {new Date(entry.createdAt).toLocaleString()}
                         </DialogDescription>
-                        <div className="whitespace-pre-wrap text-neutral-700 leading-relaxed text-lg pt-2">
+                        <div className="whitespace-pre-wrap text-ink text-[17px] pt-2" style={{ lineHeight: 1.75 }}>
                             {entry.body}
                         </div>
                     </DialogHeader>
-                    <DialogFooter className="!justify-between items-center px-6 pb-2 pt-4 border-t border-stone-100 sm:!flex-row">
+                    <DialogFooter className="!justify-between items-center px-6 pb-2 pt-4 border-t border-hush sm:!flex-row">
                         {confirmingDelete ? (
                             <div className="flex items-center gap-3 text-sm">
                                 <span className="text-neutral-500">

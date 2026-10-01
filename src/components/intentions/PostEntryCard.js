@@ -5,6 +5,20 @@ import TextareaAutosize from "react-textarea-autosize"
 import { scheduleFor } from "@/lib/intentions/schedule"
 import { patchIntention } from "./api"
 
+// shows a choice's result straight away and saves in the background (a
+// database round trip can take over a second). onResolved gets the message
+// and a promise of whether the save worked, so the parent can refresh once
+// it's landed or replace the message if it failed.
+function saveInBackground(id, body, message, onResolved) {
+    const saved = patchIntention(id, body).then(() => true, err => {
+        console.error("Failed to update open loop", err)
+        return false
+    })
+    onResolved(message, saved)
+}
+
+const SAVE_FAILED = "Couldn't save that. It's still under Not decided yet on Open loops"
+
 // more than this and the card stops feeling like relief after a brain dump
 const VISIBLE_SUGGESTIONS = 4
 // how long "no open loops this time" stays before the editor comes back
@@ -42,9 +56,12 @@ export default function PostEntryCard({ state, onClose, onChange }) {
         return () => clearTimeout(timeout)
     }, [isEmpty, allResolved, onClose])
 
-    const resolve = (id, message) => {
+    const resolve = (id, message, saved) => {
         setResolved(prev => ({ ...prev, [id]: message }))
-        onChange?.()
+        saved.then(ok => {
+            if (ok) onChange?.()
+            else setResolved(prev => ({ ...prev, [id]: SAVE_FAILED }))
+        })
     }
     const visible = showAll ? suggestions : suggestions.slice(0, VISIBLE_SUGGESTIONS)
     const hiddenCount = suggestions.length - visible.length
@@ -52,18 +69,18 @@ export default function PostEntryCard({ state, onClose, onChange }) {
     return (
         <div className="animate-in fade-in">
             <div className="flex items-center justify-between gap-4 pb-3">
-                <p className="flex items-center gap-2 min-w-0 text-sm text-neutral-500">
+                <p className="flex items-center gap-2 min-w-0 text-sm text-faint">
                     {state.saving ? (
-                        <span className="w-1.5 h-1.5 mx-1 rounded-full bg-neutral-400 animate-pulse shrink-0" />
+                        <span className="w-1.5 h-1.5 mx-1 rounded-full bg-faint animate-pulse shrink-0" />
                     ) : (
-                        <Check className="w-4 h-4 text-[#b88998] shrink-0" />
+                        <Check className="w-4 h-4 text-brand shrink-0" />
                     )}
                     <span className="shrink-0">{state.saving ? "Saving…" : "Saved"}</span>
-                    {state.preview && <span className="truncate text-neutral-400">· “{state.preview}”</span>}
+                    {state.preview && <span className="truncate">· “{state.preview}”</span>}
                 </p>
                 <button
                     onClick={onClose}
-                    className="text-sm px-3 py-1 rounded-xl border border-stone-300 text-neutral-600 hover:bg-stone-100 transition shrink-0"
+                    className="text-sm px-4 py-1.5 rounded-full border border-line text-soft hover:bg-hush transition shrink-0"
                 >
                     New entry
                 </button>
@@ -71,25 +88,25 @@ export default function PostEntryCard({ state, onClose, onChange }) {
 
             {waiting ? (
                 <div role="status" aria-live="polite">
-                    <p className="text-neutral-600 mb-3">Reading for open loops…</p>
+                    <p className="italic text-base text-soft mt-3 mb-2">Reading for open loops…</p>
                     <SkeletonRow />
                     <SkeletonRow short />
                 </div>
             ) : isEmpty ? (
-                <p className="text-neutral-500 animate-in fade-in">No open loops this time.</p>
+                <p className="italic text-base text-soft mt-3 animate-in fade-in">No open loops this time.</p>
             ) : (
                 <>
                     {suggestions.length > 0 && (
                         <>
-                            <h3 className="text-neutral-700 font-medium">Want to hold onto any of these?</h3>
-                            <p className="text-xs text-neutral-400 mt-0.5">Open loops from what you just wrote</p>
-                            <ul className="divide-y divide-stone-100">
+                            <h3 className="font-display text-[26px] font-medium text-ink mt-3">Want to hold onto any of these?</h3>
+                            <p className="text-sm text-faint">Open loops from what you just wrote</p>
+                            <ul className="divide-y divide-hush">
                                 {visible.map(item => (
-                                    <li key={item.id} className="py-3">
+                                    <li key={item.id} className="py-4">
                                         {resolved[item.id] ? (
                                             <ResolvedLine message={resolved[item.id]} />
                                         ) : (
-                                            <SuggestionRow item={item} onResolved={message => resolve(item.id, message)} />
+                                            <SuggestionRow item={item} onResolved={(message, saved) => resolve(item.id, message, saved)} />
                                         )}
                                     </li>
                                 ))}
@@ -97,7 +114,7 @@ export default function PostEntryCard({ state, onClose, onChange }) {
                             {hiddenCount > 0 && (
                                 <button
                                     onClick={() => setShowAll(true)}
-                                    className="text-xs text-neutral-400 hover:text-neutral-600 transition"
+                                    className="text-sm text-faint hover:text-soft transition"
                                 >
                                     +{hiddenCount} more
                                 </button>
@@ -106,15 +123,15 @@ export default function PostEntryCard({ state, onClose, onChange }) {
                     )}
 
                     {related.length > 0 && (
-                        <div className={suggestions.length > 0 ? "mt-3 pt-3 border-t border-stone-200" : ""}>
-                            <p className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-1">You mentioned this before</p>
-                            <ul className="divide-y divide-stone-100">
+                        <div className={suggestions.length > 0 ? "mt-4 pt-4 border-t border-hush" : "mt-3"}>
+                            <p className="font-display text-xl font-medium text-ink mb-1">You mentioned this before</p>
+                            <ul className="divide-y divide-hush">
                                 {related.map(item => (
                                     <li key={item.id} className="py-2.5">
                                         {resolved[item.id] ? (
                                             <ResolvedLine message={resolved[item.id]} />
                                         ) : (
-                                            <RelatedRow item={item} onResolved={message => resolve(item.id, message)} />
+                                            <RelatedRow item={item} onResolved={(message, saved) => resolve(item.id, message, saved)} />
                                         )}
                                     </li>
                                 ))}
@@ -131,7 +148,7 @@ export default function PostEntryCard({ state, onClose, onChange }) {
 function SkeletonRow({ short = false }) {
     return (
         <div className="py-2.5 space-y-2 animate-pulse">
-            <div className={`h-3 rounded bg-stone-200/80 ${short ? "w-1/2" : "w-3/4"}`} />
+            <div className={`h-3 rounded bg-hush ${short ? "w-1/2" : "w-3/4"}`} />
             <div className={`h-4 rounded bg-stone-200 ${short ? "w-1/3" : "w-2/5"}`} />
             <div className="flex gap-1.5">
                 <div className="h-6 w-20 rounded-full bg-stone-100" />
@@ -145,38 +162,25 @@ function SkeletonRow({ short = false }) {
 // also used in the "see all" dialog for suggestions that were never answered
 export function SuggestionRow({ item, onResolved }) {
     const [text, setText] = useState(item.text)
-    const [saving, setSaving] = useState(false)
-    const [error, setError] = useState(false)
 
-    async function act(body, message) {
-        setSaving(true)
-        setError(false)
-        try {
-            await patchIntention(item.id, body)
-            onResolved(message)
-        } catch (err) {
-            console.error("Failed to update open loop", err)
-            setError(true)
-            setSaving(false)
-        }
-    }
+    const act = (body, message) => saveInBackground(item.id, body, message, onResolved)
 
     function confirm(horizon, { useSuggestedStep = false } = {}) {
         const kind = useSuggestedStep ? "TASK" : item.kind
         const { dueAt, nextCheckInAt } = scheduleFor(kind, horizon)
         act(
             { action: "confirm", horizon, dueAt, nextCheckInAt, text, useSuggestedStep },
-            "Added to open loops ↑"
+            "Added to open loops"
         )
     }
 
     const dismiss = () => act({ action: "dismiss" }, "Okay, not a to-do")
 
     return (
-        <div className={saving ? "opacity-50 pointer-events-none transition" : "transition"}>
-            <p className="text-sm italic text-neutral-500 mb-1">“{item.sourceQuote}”</p>
-            <div className="flex items-start gap-2 mb-2">
-                <span className="mt-0.5"><KindTag kind={item.kind} /></span>
+        <div>
+            <p className="italic text-[15px] text-soft mb-1">“{item.sourceQuote}”</p>
+            <div className="flex items-start gap-2 mb-3">
+                <span className="mt-1"><KindTag kind={item.kind} /></span>
                 {/* wraps instead of cutting off long text on narrow screens */}
                 <TextareaAutosize
                     value={text}
@@ -184,7 +188,7 @@ export function SuggestionRow({ item, onResolved }) {
                     onKeyDown={e => { if (e.key === "Enter") e.preventDefault() }}
                     aria-label="Open loop text"
                     minRows={1}
-                    className="flex-1 min-w-0 resize-none text-neutral-800 font-medium bg-transparent rounded px-1 -mx-1 focus:outline-none focus:bg-stone-50"
+                    className="flex-1 min-w-0 resize-none text-ink font-bold text-[15px] bg-transparent rounded px-1 -mx-1 focus:outline-none focus:bg-hush/60"
                 />
             </div>
 
@@ -211,51 +215,39 @@ export function SuggestionRow({ item, onResolved }) {
                 )}
                 <button
                     onClick={dismiss}
-                    className="text-xs px-2.5 py-1 rounded-full text-neutral-400 hover:text-neutral-600 transition"
+                    className="text-sm px-2.5 py-1.5 rounded-full text-faint hover:text-soft transition"
                 >
                     Not a to-do
                 </button>
             </div>
-            {error && <p className="text-xs text-red-400 mt-1.5">Couldn't save that, try again?</p>}
         </div>
     )
 }
 
 function RelatedRow({ item, onResolved }) {
-    const [saving, setSaving] = useState(false)
-    const [error, setError] = useState(false)
-
-    async function act(action, message) {
-        setSaving(true)
-        setError(false)
-        try {
-            await patchIntention(item.id, { action })
-            onResolved(message)
-        } catch (err) {
-            console.error("Failed to update open loop", err)
-            setError(true)
-            setSaving(false)
-        }
-    }
+    const act = (action, message) => saveInBackground(item.id, { action }, message, onResolved)
 
     return (
-        <div className={`flex items-center justify-between gap-3 flex-wrap ${saving ? "opacity-50 pointer-events-none" : ""}`}>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
             <span className="flex items-baseline gap-2 min-w-0">
-                <span className="text-neutral-700">{item.text}</span>
-                {item.finished && <span className="text-xs text-[#8a6270] shrink-0">Sounds like you did this</span>}
+                <span className="text-ink">{item.text}</span>
+                {item.finished && <span className="italic text-sm text-brand-deep shrink-0">sounds like you did this</span>}
             </span>
             <div className="flex gap-1.5">
                 <ChoiceButton highlighted={item.finished} onClick={() => act("done", "Loop closed")}>Done</ChoiceButton>
                 <ChoiceButton onClick={() => act("keep", "Still open")}>Still on it</ChoiceButton>
             </div>
-            {error && <p className="w-full text-xs text-red-400">Couldn't save that, try again?</p>}
         </div>
     )
 }
 
+// same dot colours as the /loops sections: brand = task, sage = goal, lilac = wish
+const KIND_DOT = { TASK: "bg-brand", GOAL: "bg-sage", WISH: "bg-lilac" }
+
 export function KindTag({ kind }) {
     return (
-        <span className="text-[11px] px-1.5 py-0.5 rounded bg-stone-100 text-neutral-500 shrink-0 capitalize">
+        <span className="inline-flex items-center gap-1.5 text-xs text-faint shrink-0 capitalize">
+            <span className={`w-1.5 h-1.5 rounded-full ${KIND_DOT[kind]}`} />
             {kind.toLowerCase()}
         </span>
     )
@@ -267,10 +259,10 @@ export function ChoiceButton({ highlighted = false, onClick, children }) {
     return (
         <button
             onClick={onClick}
-            className={`text-xs px-2.5 py-1 rounded-full border transition text-left ${
+            className={`text-sm px-3.5 py-1.5 rounded-full border transition text-left ${
                 highlighted
-                    ? "border-[#b88998]/60 bg-[#b88998]/15 text-[#8a6270] hover:bg-[#b88998]/25"
-                    : "border-stone-200 text-neutral-600 hover:bg-stone-100"
+                    ? "border-brand/30 bg-brand-soft text-brand-deep hover:bg-brand/20"
+                    : "border-line text-soft hover:bg-hush"
             }`}
         >
             {children}
@@ -280,8 +272,8 @@ export function ChoiceButton({ highlighted = false, onClick, children }) {
 
 export function ResolvedLine({ message }) {
     return (
-        <p className="flex items-center gap-2 text-sm text-neutral-500 animate-in fade-in">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#b88998]" />
+        <p className="flex items-center gap-2 text-sm text-soft animate-in fade-in">
+            <Check className="w-4 h-4 text-brand" />
             {message}
         </p>
     )

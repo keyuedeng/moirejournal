@@ -2,6 +2,66 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+Moiré palette: a clean, near-white base with neutral, very slightly warm
+greys and one plum accent. The stone/neutral/slate scales are redefined to the
+same greys so existing classes all follow the palette; prefer the named
+colours below in new code.
+*/
+@theme {
+  --font-sans: var(--font-lato), -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-display: var(--font-cormorant), Georgia, serif;
+
+  --color-paper: #FAFAF9;    /* page background (see bg-page for the gradient) */
+  --color-surface: #FFFFFF;  /* cards */
+  --color-ink: #262322;      /* main text */
+  --color-soft: #5F5A57;     /* secondary text */
+  --color-faint: #99938F;    /* hints, meta ("muted" is taken by the ui kit's tokens) */
+  --color-line: #EBEAE8;     /* borders */
+  --color-hush: #F4F4F2;     /* dividers inside cards, hover fills */
+  --color-brand: #7F5B70;      /* the accent: plum ("accent" is taken by the ui kit) */
+  --color-brand-deep: #664558; /* accent text on light fills, hover */
+  --color-brand-soft: #F2ECF0; /* soft accent fill */
+  --color-sage: #9AA593;     /* "ongoing" dot */
+  --color-lilac: #ACA6B6;    /* "someday" dot */
+
+  --color-stone-50: #FCFCFB;
+  --color-stone-100: #F5F5F3;
+  --color-stone-200: #EBEAE8;
+  --color-stone-300: #D7D3CF;
+  --color-stone-400: #B0AAA5;
+  --color-stone-500: #99938F;
+  --color-stone-600: #78726E;
+  --color-stone-700: #4F4A47;
+  --color-stone-800: #262322;
+  --color-stone-900: #1A1817;
+
+  --color-neutral-50: #FCFCFB;
+  --color-neutral-100: #F5F5F3;
+  --color-neutral-200: #EBEAE8;
+  --color-neutral-300: #D7D3CF;
+  --color-neutral-400: #B0AAA5;
+  --color-neutral-500: #99938F;
+  --color-neutral-600: #78726E;
+  --color-neutral-700: #4F4A47;
+  --color-neutral-800: #262322;
+  --color-neutral-900: #1A1817;
+
+  --color-slate-50: #FCFCFB;
+  --color-slate-500: #99938F;
+  --color-slate-600: #78726E;
+  --color-slate-700: #4F4A47;
+  --color-slate-900: #1A1817;
+
+  --shadow-soft: 0 1px 2px rgba(38, 35, 34, 0.04), 0 8px 24px -16px rgba(38, 35, 34, 0.16);
+}
+
+/* full-page background: white at the top, fading into the paper colour */
+@utility bg-page {
+  background-color: var(--color-paper);
+  background-image: linear-gradient(180deg, #FFFFFF 0%, var(--color-paper) 520px);
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -42,8 +102,8 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --background: #FAFAF9;
+  --foreground: #262322;
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -114,8 +174,8 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
-    font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    letter-spacing: -0.011em;
+    @apply bg-background text-foreground font-sans;
+    /* Cormorant defaults to old-style numerals, where "1" looks like "I" */
+    font-variant-numeric: lining-nums;
   }
 }

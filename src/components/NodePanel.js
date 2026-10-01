@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import { X, ArrowRight } from "lucide-react"
 
-const CARD = "border border-stone-200 rounded-xl h-full overflow-y-auto shadow-sm bg-white/80 backdrop-blur-sm"
+const CARD = "border border-line rounded-2xl h-full overflow-y-auto shadow-soft bg-surface"
 
 function CloseButton({ onClose }) {
     if (!onClose) return null
@@ -11,7 +11,7 @@ function CloseButton({ onClose }) {
         <button
             onClick={onClose}
             aria-label="Close"
-            className="text-neutral-400 hover:text-neutral-600 p-1 -m-1 rounded-md shrink-0"
+            className="text-faint hover:text-soft p-1 -m-1 rounded-md shrink-0"
         >
             <X className="w-4 h-4" />
         </button>
@@ -45,7 +45,7 @@ function FormattedText({ text }) {
     const parts = text.split(/(\*\*[^*]+\*\*)/g)
     return parts.map((part, i) =>
         part.startsWith('**') && part.endsWith('**')
-            ? <strong key={i} className="font-semibold text-neutral-700">{part.slice(2, -2)}</strong>
+            ? <strong key={i} className="font-bold text-ink">{part.slice(2, -2)}</strong>
             : <span key={i}>{part}</span>
     )
 }
@@ -89,8 +89,8 @@ export default function NodePanel({ nodeId, onClose }) {
 
     if (!nodeId) return (
         <div className={`${CARD} p-6 flex items-center justify-center`}>
-            <div className="text-center text-neutral-400 max-w-xs">
-                <p className="text-base leading-relaxed font-[family-name:var(--font-cormorant)] italic text-lg">
+            <div className="text-center text-faint max-w-xs">
+                <p className="leading-relaxed italic text-base">
                     Click on a theme to explore what you've written about it
                 </p>
             </div>
@@ -99,7 +99,7 @@ export default function NodePanel({ nodeId, onClose }) {
     if (loading) return (
         <div className={`${CARD} p-4`}>
             <div className="flex justify-end mb-2"><CloseButton onClose={onClose} /></div>
-            <div className="text-neutral-400 text-sm font-[family-name:var(--font-cormorant)] italic">Loading...</div>
+            <div className="text-faint italic text-sm">Loading…</div>
         </div>
     )
     if (error) return (
@@ -109,7 +109,7 @@ export default function NodePanel({ nodeId, onClose }) {
                 <p className="text-sm text-neutral-500">Couldn't load this theme.</p>
                 <button
                     onClick={() => loadNode(nodeId)}
-                    className="text-sm px-4 py-1.5 rounded-full border border-stone-300 text-neutral-600 hover:bg-stone-100 transition"
+                    className="text-sm px-4 py-1.5 rounded-full border border-line text-soft hover:bg-hush transition"
                 >
                     Try again
                 </button>
@@ -137,17 +137,17 @@ export default function NodePanel({ nodeId, onClose }) {
     return (
         <div className={`${CARD} p-5`}>
             <div className="flex items-start justify-between gap-2 mb-1">
-                <h2 className="text-2xl font-semibold capitalize text-neutral-800 font-[family-name:var(--font-cormorant)]">{data.summary.label}</h2>
+                <h2 className="text-[32px] leading-tight font-medium capitalize text-ink font-display">{data.summary.label}</h2>
                 <CloseButton onClose={onClose} />
             </div>
-            <p className="text-sm text-neutral-500 mb-1">
+            <p className="text-sm text-faint mb-1">
                 {sinceLabel && `Since ${sinceLabel} · `}
                 {data.summary.count} {data.summary.count === 1 ? 'entry' : 'entries'}
             </p>
 
             {/* Emotional tone + recent pattern — real signal that was being computed and thrown away */}
             {(data.mood || data.trajectory) && (
-                <p className="text-xs text-neutral-400 mb-5">
+                <p className="text-xs text-faint mb-5">
                     {data.mood}
                     {data.mood && data.trajectory && <span className="mx-1.5">·</span>}
                     {data.trajectory}
@@ -158,7 +158,7 @@ export default function NodePanel({ nodeId, onClose }) {
             {data.insights && data.insights.length > 0 && (
                 <div className="mb-6 space-y-1.5">
                     {data.insights.map((insight, index) => (
-                        <p key={index} className="text-sm text-neutral-600 leading-relaxed">
+                        <p key={index} className="text-sm text-soft leading-relaxed">
                             <FormattedText text={insight} />
                         </p>
                     ))}
@@ -168,29 +168,29 @@ export default function NodePanel({ nodeId, onClose }) {
             {/* What's being noticed (interpretation) */}
             {data.llmSummary && (
                 <div className="mb-6">
-                    <h3 className="text-sm font-medium text-neutral-700 mb-2">What's being noticed</h3>
-                    <p className="text-sm leading-relaxed text-neutral-600">{data.llmSummary}</p>
+                    <h3 className="font-display text-xl font-medium text-ink mb-1.5">What's being noticed</h3>
+                    <p className="text-sm leading-relaxed text-soft">{data.llmSummary}</p>
                 </div>
             )}
 
             {/* In your words — the most personal part, now dated and in order instead of an unordered dump */}
             {data.excerpts && data.excerpts.length > 0 && (
                 <div className="mb-6">
-                    <h3 className="text-sm font-medium text-neutral-700 mb-2">In your words</h3>
+                    <h3 className="font-display text-xl font-medium text-ink mb-2">In your words</h3>
                     <div className="space-y-3">
                         {data.excerpts.map((excerpt, index) => (
-                            <div key={index} className="pl-3 border-l-2 border-[#b88998]/30">
-                                <p className="text-xs text-neutral-500 italic">{excerptSnippet(excerpt.text)}</p>
+                            <div key={index} className="pl-3 border-l-2 border-brand/30">
+                                <p className="italic text-[15px] leading-snug text-soft">“{excerptSnippet(excerpt.text)}”</p>
                                 <div className="flex items-center gap-2 mt-1">
                                     {excerpt.createdAt && (
-                                        <span className="text-[11px] text-neutral-400">
+                                        <span className="text-xs text-faint">
                                             {new Date(excerpt.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                         </span>
                                     )}
                                     {excerpt.entryId && (
                                         <Link
                                             href={`/journal?entry=${excerpt.entryId}`}
-                                            className="text-[11px] text-[#b88998] hover:text-[#8a6270] inline-flex items-center gap-0.5"
+                                            className="text-xs text-brand hover:text-brand-deep inline-flex items-center gap-0.5"
                                         >
                                             Read full entry <ArrowRight className="w-2.5 h-2.5" />
                                         </Link>
@@ -205,10 +205,10 @@ export default function NodePanel({ nodeId, onClose }) {
             {/* Connected themes — supporting reference now that the sentences above already explain the "why" */}
             {allConnections.length > 0 && (
                 <div className="mb-6">
-                    <h3 className="text-sm font-medium text-neutral-700 mb-2">Connected to</h3>
+                    <h3 className="font-display text-xl font-medium text-ink mb-2">Connected to</h3>
                     <div className="flex flex-wrap gap-1.5">
                         {allConnections.slice(0, 6).map((conn, index) => (
-                            <span key={index} className="text-xs px-2.5 py-1 bg-stone-100 rounded-full text-neutral-600 capitalize">
+                            <span key={index} className="text-sm px-3 py-1 border border-line rounded-full text-soft capitalize">
                                 {conn.label}
                             </span>
                         ))}
@@ -218,7 +218,7 @@ export default function NodePanel({ nodeId, onClose }) {
 
             <Link
                 href={`/journal?theme=${encodeURIComponent(data.summary.label)}`}
-                className="block text-center text-sm py-2 rounded-xl border border-stone-300 text-neutral-600 hover:bg-stone-100 transition"
+                className="block text-center text-sm py-2.5 rounded-full bg-brand hover:bg-brand-deep text-white transition"
             >
                 Write about this
             </Link>

@@ -193,26 +193,26 @@ export default function Map({ onNodeSelect }) {
     const hasGraph = !loading && !loadError && graphData.nodes.length > 0
 
     return (
-        <div ref={containerRef} className="relative h-full flex justify-center items-center bg-gradient-to-br from-stone-100/50 via-slate-50/40 to-neutral-100/50">
+        <div ref={containerRef} className="relative h-full flex justify-center items-center bg-page">
             {/* faint workspace texture, sits behind the graph */}
             <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                    backgroundImage: 'radial-gradient(circle, rgba(120,113,108,0.12) 1px, transparent 1px)',
+                    backgroundImage: 'radial-gradient(circle, rgba(153,147,143,0.16) 1px, transparent 1px)',
                     backgroundSize: '22px 22px',
                 }}
             />
 
             {loading ? (
                 <div className="text-center text-neutral-400 select-none">
-                    <p className="text-sm font-[family-name:var(--font-cormorant)] italic text-lg">Loading your map...</p>
+                    <p className="italic text-base">Loading your map…</p>
                 </div>
             ) : loadError ? (
                 <div className="text-center text-neutral-400 max-w-md px-8">
                     <p className="text-base leading-relaxed mb-3">Couldn't load your map.</p>
                     <button
                         onClick={() => window.location.reload()}
-                        className="text-sm px-4 py-1.5 rounded-full border border-stone-300 text-neutral-600 hover:bg-stone-100 transition"
+                        className="text-sm px-4 py-1.5 rounded-full border border-line text-soft hover:bg-hush transition"
                     >
                         Try again
                     </button>
@@ -220,15 +220,15 @@ export default function Map({ onNodeSelect }) {
             ) : graphData.nodes.length === 0 ? (
                 <div className="relative text-center text-neutral-500 max-w-md px-8 select-none">
                     <svg width="180" height="100" viewBox="0 0 180 100" fill="none" className="mx-auto mb-4 opacity-50">
-                        <line x1="40" y1="30" x2="90" y2="55" stroke="#a8a29e" strokeWidth="1" />
-                        <line x1="90" y1="55" x2="140" y2="35" stroke="#a8a29e" strokeWidth="1" />
-                        <line x1="90" y1="55" x2="70" y2="85" stroke="#a8a29e" strokeWidth="1" />
-                        <circle cx="40" cy="30" r="5" fill="#a8a29e" />
-                        <circle cx="90" cy="55" r="7" fill="#78716c" />
-                        <circle cx="140" cy="35" r="4" fill="#a8a29e" />
-                        <circle cx="70" cy="85" r="4" fill="#a8a29e" />
+                        <line x1="40" y1="30" x2="90" y2="55" stroke="#D5CCD1" strokeWidth="1" />
+                        <line x1="90" y1="55" x2="140" y2="35" stroke="#D5CCD1" strokeWidth="1" />
+                        <line x1="90" y1="55" x2="70" y2="85" stroke="#D5CCD1" strokeWidth="1" />
+                        <circle cx="40" cy="30" r="5" fill="#D5CCD1" />
+                        <circle cx="90" cy="55" r="7" fill="#A6939E" />
+                        <circle cx="140" cy="35" r="4" fill="#D5CCD1" />
+                        <circle cx="70" cy="85" r="4" fill="#D5CCD1" />
                     </svg>
-                    <h2 className="text-2xl font-semibold mb-3 text-neutral-700 font-[family-name:var(--font-cormorant)]">Nothing here yet</h2>
+                    <h2 className="text-[32px] font-medium mb-3 text-ink font-display">Nothing here yet</h2>
                     <p className="text-base leading-relaxed">
                         Keep writing to see the patterns in your thoughts come alive.
                         Your themes will start showing up here once they appear more than once.
@@ -272,9 +272,9 @@ export default function Map({ onNodeSelect }) {
                         // on the rose accent, which not everyone wants as
                         // the dominant color of their whole map.
                         const getNodeColor = (count) => {
-                            if (count >= 5) return '#44403c' // stone-700 — long-standing theme
-                            if (count >= 3) return '#78716c' // stone-500 — established theme
-                            return '#a8a29e' // stone-400 — just starting to recur
+                            if (count >= 5) return '#6E5866' // deep plum-grey — long-standing theme
+                            if (count >= 3) return '#A6939E' // dusty plum-grey — established theme
+                            return '#D5CCD1' // pale plum-grey — just starting to recur
                         }
 
                         // Every size/offset below is divided by globalScale,
@@ -369,7 +369,7 @@ export default function Map({ onNodeSelect }) {
                             ctx.font = `italic 500 ${fontSize}px ${serifFontRef.current}`
                             ctx.textAlign = 'center'
                             ctx.textBaseline = 'middle'
-                            ctx.fillStyle = '#57534e' // stone-600, matches the rest of the app's text
+                            ctx.fillStyle = '#4F4A47' // matches the app's text colour
                             ctx.fillText(label, node.x, node.y + size + (11 / Math.min(globalScale, 3)))
                         }
                     }}
@@ -400,7 +400,7 @@ export default function Map({ onNodeSelect }) {
                         ctx.fillStyle = color
                         ctx.fill()
                     }}
-                    linkColor={() => '#d6d3d1'} // stone-300 — warm instead of cool gray
+                    linkColor={() => '#E6E2DF'} // warm hairline, like the app's borders
                     linkWidth={link => Math.min(link.weight * 0.5, 3)}
                     backgroundColor="rgba(0,0,0,0)" // transparent — lets the page's own warm gradient show through
                     nodeVal={node => node.count > 2 ? 8 : node.count > 1 ? 4 : 2}
@@ -411,46 +411,46 @@ export default function Map({ onNodeSelect }) {
             {hasGraph && (
                 <>
                     {/* stats badge */}
-                    <div className="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-white/80 backdrop-blur-sm border border-stone-200 shadow-sm text-xs text-neutral-500">
+                    <div className="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-surface/90 backdrop-blur-sm border border-line shadow-soft text-xs text-neutral-500">
                         {graphData.nodes.length} {graphData.nodes.length === 1 ? 'theme' : 'themes'} · {graphData.links.length} {graphData.links.length === 1 ? 'connection' : 'connections'}
                     </div>
 
                     {/* legend */}
-                    <div className="absolute bottom-4 left-4 px-3 py-2.5 rounded-xl bg-white/80 backdrop-blur-sm border border-stone-200 shadow-sm text-xs text-neutral-500 space-y-1.5">
+                    <div className="absolute bottom-4 left-4 px-3 py-2.5 rounded-xl bg-surface/90 backdrop-blur-sm border border-line shadow-soft text-xs text-neutral-500 space-y-1.5">
                         <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#a8a29e' }} />
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: '#D5CCD1' }} />
                             Just starting to recur
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#78716c' }} />
+                            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#A6939E' }} />
                             Established
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: '#44403c' }} />
+                            <span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: '#6E5866' }} />
                             Long-standing
                         </div>
                     </div>
 
                     {/* manual zoom controls — no automatic camera movement anymore */}
-                    <div className="absolute bottom-4 right-4 flex flex-col rounded-xl bg-white/80 backdrop-blur-sm border border-stone-200 shadow-sm overflow-hidden">
+                    <div className="absolute bottom-4 right-4 flex flex-col rounded-xl bg-surface/90 backdrop-blur-sm border border-line shadow-soft overflow-hidden">
                         <button
                             onClick={handleZoomIn}
                             aria-label="Zoom in"
-                            className="p-2 text-neutral-500 hover:bg-stone-100 hover:text-neutral-700 transition"
+                            className="p-2 text-neutral-500 hover:bg-hush hover:text-ink transition"
                         >
                             <Plus className="w-4 h-4" />
                         </button>
                         <button
                             onClick={handleZoomOut}
                             aria-label="Zoom out"
-                            className="p-2 text-neutral-500 hover:bg-stone-100 hover:text-neutral-700 transition border-t border-stone-200"
+                            className="p-2 text-neutral-500 hover:bg-hush hover:text-ink transition border-t border-line"
                         >
                             <Minus className="w-4 h-4" />
                         </button>
                         <button
                             onClick={handleResetView}
                             aria-label="Fit view to graph"
-                            className="p-2 text-neutral-500 hover:bg-stone-100 hover:text-neutral-700 transition border-t border-stone-200"
+                            className="p-2 text-neutral-500 hover:bg-hush hover:text-ink transition border-t border-line"
                         >
                             <Maximize2 className="w-4 h-4" />
                         </button>
