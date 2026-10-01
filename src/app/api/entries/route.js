@@ -121,8 +121,11 @@ export async function DELETE(request) {
 
         // Insight rows reference this entry with no cascade delete, so they
         // have to go first or the entry delete fails on the FK constraint.
+        // Open loops the user never confirmed go with the entry; confirmed
+        // ones survive (their entryId is set to null by the FK).
         await prisma.$transaction([
             prisma.insight.deleteMany({ where: { entryId: id } }),
+            prisma.intention.deleteMany({ where: { entryId: id, status: { in: ["SUGGESTED", "DISMISSED"] } } }),
             prisma.entry.delete({ where: { id } }),
         ])
 

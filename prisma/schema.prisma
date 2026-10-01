@@ -14,8 +14,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  lastSeenAt DateTime? // last time open loops were surfaced; drives "since you were last here"
+
   entries Entry[]
   nodes Node[]
+  intentions Intention[]
 }
 
 model Entry {
@@ -26,7 +29,9 @@ model Entry {
   updatedAt DateTime    @updatedAt
   userId    String
   status    EntryStatus @default(PENDING)
+  intentionsExtractedAt DateTime? // set once intention extraction has run, so it never runs twice
   insights  Insight[]
+  intentions Intention[]
   user User @relation(fields: [userId], references: [id])
 }
 
@@ -71,6 +76,7 @@ model Node {
   updatedAt DateTime @updatedAt
 
   topicAliases TopicAlias[]
+  intentions Intention[]
 
   outgoingEdges Edge[] @relation("EdgeSource")
   incomingEdges Edge[] @relation("EdgeTarget")
@@ -94,4 +100,56 @@ model Edge {
     @@index([sourceId])
     @@index([targetId])
     @@unique([sourceId, targetId]) // prevents duplicate edges
+}
+
+enum IntentionKind {
+  TASK  // concrete and finishable
+  GOAL  // ongoing or measurable
+  WISH  // vague; usually comes with a suggestedStep
+}
+
+enum Horizon {
+  WEEK
+  MONTH
+  SOMEDAY
+}
+
+enum IntentionStatus {
+  SUGGESTED  // extracted, waiting for the user to confirm on the post-entry card
+  ACTIVE     // confirmed — an open loop
+  DONE
+  DROPPED    // let go on purpose
+  DISMISSED  // "not a to-do" — kept to help tune extraction
+}
+
+// An "open loop": something the user said they want/need to do in an entry.
+model Intention {
+  id                String          @id @default(cuid())
+  userId            String
+  entryId           String?         // nullable so deleting an entry doesn't kill an active loop
+  nodeId            String?         // linked after the entry pipeline finishes
+  text              String
+  sourceQuote       String          @db.Text
+  suggestedStep     String?
+  kind              IntentionKind
+  suggestedHorizon  Horizon?        // extractor's guess, used to preselect on the card
+  horizon           Horizon?        // what the user actually picked
+  status            IntentionStatus @default(SUGGESTED)
+  dueAt             DateTime?       // tasks
+  nextCheckInAt     DateTime?       // goals
+  snoozeUntil       DateTime?
+  embedding         Float[]
+  lastSurfacedAt    DateTime?
+  lastInteractedAt  DateTime?
+  ignoredCount      Int             @default(0)
+  completedAt       DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id])
+  entry Entry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  node  Node?  @relation(fields: [nodeId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([entryId])
 }

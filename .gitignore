@@ -24,6 +24,11 @@
 .DS_Store
 *.pem
 
+# private dev notes (not for public repo)
+DEV_NOTES.md
+# real journal entries used as prompt-tuning fixtures
+/scripts/fixtures/private/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
