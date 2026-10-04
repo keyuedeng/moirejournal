@@ -15,10 +15,13 @@ model User {
   updatedAt DateTime @updatedAt
 
   lastSeenAt DateTime? // last time open loops were surfaced; drives "since you were last here"
+  lastReviewOpenedAt DateTime? // last time the weekly look back was opened; hides the "your week is ready" card
 
   entries Entry[]
   nodes Node[]
   intentions Intention[]
+  patternSuggestions PatternSuggestion[]
+  weeklyReflections WeeklyReflection[]
 }
 
 model Entry {
@@ -77,6 +80,10 @@ model Node {
 
   topicAliases TopicAlias[]
   intentions Intention[]
+  patternSuggestions PatternSuggestion[]
+
+  suggestionsMutedAt    DateTime? // "don't suggest goals about this theme"
+  suggestionSnoozedUntil DateTime? // don't suggest until: "not now" (4 weeks), or the model declined it (2 weeks)
 
   outgoingEdges Edge[] @relation("EdgeSource")
   incomingEdges Edge[] @relation("EdgeTarget")
@@ -152,4 +159,51 @@ model Intention {
 
   @@index([userId, status])
   @@index([entryId])
+}
+
+enum SuggestionStatus {
+  PENDING    // waiting in the weekly look back
+  ACCEPTED   // became a goal (intentionId)
+  DISMISSED  // "not now"
+  MUTED      // "don't suggest about this"
+}
+
+// A gentle nudge from a pattern in the user's writing: a theme that keeps
+// coming up, offered as a possible goal in the weekly look back.
+model PatternSuggestion {
+  id          String           @id @default(cuid())
+  userId      String
+  nodeId      String
+  observation String           // "You've written about feeling stuck three times this month."
+  goalText    String           // the goal it would become
+  quote       String           @db.Text // the writer's own words it's based on
+  entryId     String?
+  status      SuggestionStatus @default(PENDING)
+  intentionId String?          // set when accepted
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+// The weekly look back's short written reflection, saved so it isn't
+// regenerated (an LLM call) on every visit. Regenerated when the week's
+// entry count changes.
+model WeeklyReflection {
+  id         String   @id @default(cuid())
+  userId     String
+  weekStart  DateTime // the user's local Monday 00:00, as sent by the browser
+  entryCount Int
+  text       String   @db.Text
+  quote      String?  @db.Text // one line the user wrote that week
+  quoteEntryId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, weekStart])
 }

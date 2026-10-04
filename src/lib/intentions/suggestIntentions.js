@@ -3,6 +3,7 @@ import { openai } from "@/lib/openai";
 import { embedText } from "@/lib/identity/embeddings/embedText";
 import { cosineSimilarity } from "@/lib/utils/similarity";
 import { extractIntentions } from "./extractIntentions";
+import { linkIntentionsToNodes } from "./linkIntentionsToNodes";
 
 // the extractor decides "same loop" by meaning (it sees the open loops).
 // embeddings are a backstop for close wordings it occasionally misses
@@ -128,6 +129,16 @@ export async function suggestIntentions(userId, entry) {
             .sort((a, b) => b.score - a.score)
             .slice(0, MAX_RELATED)
             .map(({ loop: { embedding, ...loop } }) => ({ ...loop, finished: finished.has(loop.id) }))
+
+        // if the entry pipeline already finished (it usually finishes after
+        // this), link the new loops to their themes now; otherwise the
+        // pipeline links them when it's done
+        const { status } = await prisma.entry.findUnique({ where: { id: entry.id }, select: { status: true } })
+        if (status === "PROCESSED") {
+            await linkIntentionsToNodes(userId, entry.id).catch(err =>
+                console.error("Failed to link loops to themes", entry.id, err)
+            )
+        }
 
         return { suggestions, related }
     } catch (error) {

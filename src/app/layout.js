@@ -20,7 +20,7 @@ const cormorantGaramond = Cormorant_Garamond({
 
 export const metadata = {
   title: 'Moiré Journal',
-  description: 'Personal journaling app',
+  description: 'A journal that remembers what you said you’d do, and brings it back when it matters.',
   icons: {
     icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90" font-family="serif" fill="%23475569">M</text></svg>',
   }

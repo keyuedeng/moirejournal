@@ -1,5 +1,8 @@
 import prisma from '@/lib/prisma'
 import { processEntry } from '@/lib/identity/pipeline/processEntry'
+import { linkIntentionsToNodes } from '@/lib/intentions/linkIntentionsToNodes'
+import { maybeSuggestPattern } from '@/lib/patterns/patternSuggestions'
+import { refreshWeekReflection } from '@/lib/review/weeklyReview'
 import { auth } from '@clerk/nextjs/server'
 import { after } from 'next/server'
 
@@ -13,7 +16,13 @@ export async function POST(request) {
             return Response.json({ error: "Unauthorized" }, { status: 401 })
         }
         
-        const { title, body } = await request.json()
+        const { title, body, weekStart: weekStartRaw } = await request.json()
+
+        // the browser sends its local Monday 00:00 (the server doesn't know
+        // the user's timezone); used to prepare that week's look back. Only
+        // trusted if it's within a week of now.
+        const weekStart = new Date(weekStartRaw)
+        const validWeekStart = !isNaN(weekStart.getTime()) && Math.abs(Date.now() - weekStart.getTime()) <= 8 * 24 * 60 * 60 * 1000
         
         if (!body || body.trim().length === 0) {
             return Response.json(
@@ -43,11 +52,34 @@ export async function POST(request) {
         // after the response is sent, still within the function's lifetime.
         after(async () => {
             try {
-                await processEntry(userId, savedEntry.id, savedEntry.body)
+                const entryNodeIds = await processEntry(userId, savedEntry.id, savedEntry.body)
+                const linkLoops = () => linkIntentionsToNodes(userId, savedEntry.id).catch(err =>
+                    console.error("Failed to link loops to themes", savedEntry.id, err)
+                )
+                // themes exist now — link any open loops already extracted
+                // from this entry to the theme each one is about
+                await linkLoops()
+                // did a theme this entry touched just become a pattern worth
+                // gently offering as a goal? Done BEFORE marking the entry
+                // processed: the post-save card asks for a nudge as soon as
+                // it sees "processed", so it has to exist by then.
+                await maybeSuggestPattern(userId, { nodeIds: entryNodeIds }).catch(err =>
+                    console.error("Failed to check for a pattern nudge", savedEntry.id, err)
+                )
                 await prisma.entry.update({
                     where: { id: savedEntry.id },
                     data: { status: "PROCESSED" },
                 })
+                // loop extraction links its own loops if it finishes after the
+                // entry is "processed"; this catches ones that finished in between
+                await linkLoops()
+                // prepare this week's look back now, so opening it is instant
+                // (the page still generates it itself if this didn't happen)
+                if (validWeekStart) {
+                    await refreshWeekReflection(userId, weekStart).catch(err =>
+                        console.error("Failed to prepare the weekly look back", savedEntry.id, err)
+                    )
+                }
             } catch (error) {
                 console.error("Background processing failed for entry", savedEntry.id, error)
                 await prisma.entry.update({

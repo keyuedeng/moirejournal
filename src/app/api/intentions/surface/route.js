@@ -35,7 +35,7 @@ export async function GET() {
         const now = new Date()
 
         const [user, active, closedThisWeek] = await Promise.all([
-            prisma.user.findUnique({ where: { id: userId }, select: { lastSeenAt: true } }),
+            prisma.user.findUnique({ where: { id: userId }, select: { lastSeenAt: true, lastReviewOpenedAt: true } }),
             prisma.intention.findMany({
                 where: { userId, status: "ACTIVE" },
                 select: {
@@ -101,6 +101,8 @@ export async function GET() {
 
         return Response.json({
             mode: awayDays >= RETURN_AFTER_DAYS ? "return" : "daily",
+            // the journal shows "your week is ready" until this is past the review day
+            lastReviewOpenedAt: user?.lastReviewOpenedAt ?? null,
             activeCount: active.length,
             closedThisWeek,
             thisWeek: thisWeekAll.slice(0, MAX_THIS_WEEK).map(toClient),

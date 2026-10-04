@@ -4,6 +4,10 @@ import { Check } from "lucide-react"
 import TextareaAutosize from "react-textarea-autosize"
 import { scheduleFor } from "@/lib/intentions/schedule"
 import { patchIntention } from "./api"
+import { ChoiceButton, ResolvedLine } from "./ui"
+import NudgeRow from "@/components/patterns/NudgeRow"
+
+export { ChoiceButton, ResolvedLine }
 
 // shows a choice's result straight away and saves in the background (a
 // database round trip can take over a second). onResolved gets the message
@@ -37,24 +41,31 @@ feels like part of saving instead of something easy to walk away from.
 state: { preview, saving: true }                 the entry itself is still saving
      | { entryId, preview, loading: true }         saved, looking for open loops
      | { entryId, preview, suggestions, related }
+plus, once the entry's themes are processed: nudgeChecking (still looking)
+and nudge (a pattern worth offering as a goal), shown at the bottom.
 onClose: back to a fresh editor. onChange: a loop was confirmed/closed (refresh the strip).
 */
 export default function PostEntryCard({ state, onClose, onChange }) {
     const [resolved, setResolved] = useState({}) // intention id -> message shown in its place
     const [showAll, setShowAll] = useState(false)
+    const [nudgeAnswered, setNudgeAnswered] = useState(false)
 
     const suggestions = state.suggestions ?? []
     const related = state.related ?? []
+    const nudge = state.nudge ?? null
     const total = suggestions.length + related.length
     const waiting = state.saving || state.loading
-    const isEmpty = !waiting && total === 0
-    const allResolved = total > 0 && Object.keys(resolved).length >= total
+    const isEmpty = !waiting && total === 0 && !nudge
+    const allResolved = Object.keys(resolved).length >= total
+    // close on its own once everything has an answer — but not while a
+    // pattern nudge might still turn up, or one is waiting for an answer
+    const done = !waiting && !state.nudgeChecking && allResolved && (!nudge || nudgeAnswered)
 
     useEffect(() => {
-        if (!isEmpty && !allResolved) return
+        if (!done) return
         const timeout = setTimeout(onClose, isEmpty ? EMPTY_LINGER_MS : DONE_LINGER_MS)
         return () => clearTimeout(timeout)
-    }, [isEmpty, allResolved, onClose])
+    }, [done, isEmpty, onClose])
 
     const resolve = (id, message, saved) => {
         setResolved(prev => ({ ...prev, [id]: message }))
@@ -69,15 +80,24 @@ export default function PostEntryCard({ state, onClose, onChange }) {
     return (
         <div className="animate-in fade-in">
             <div className="flex items-center justify-between gap-4 pb-3">
-                <p className="flex items-center gap-2 min-w-0 text-sm text-faint">
+                <div className="flex items-start gap-2.5 min-w-0">
                     {state.saving ? (
-                        <span className="w-1.5 h-1.5 mx-1 rounded-full bg-faint animate-pulse shrink-0" />
+                        <span className="w-5 h-5 shrink-0 flex items-center justify-center mt-px">
+                            <span className="w-1.5 h-1.5 rounded-full bg-faint animate-pulse" />
+                        </span>
                     ) : (
-                        <Check className="w-4 h-4 text-brand shrink-0" />
+                        <span className="w-5 h-5 rounded-full bg-brand shrink-0 flex items-center justify-center mt-px animate-in zoom-in-50 fade-in duration-300">
+                            <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                        </span>
                     )}
-                    <span className="shrink-0">{state.saving ? "Saving…" : "Saved"}</span>
-                    {state.preview && <span className="truncate">· “{state.preview}”</span>}
-                </p>
+                    <div className="min-w-0">
+                        {/* a short, specific acknowledgement once it's saved */}
+                        <p className="text-[15px] text-ink">
+                            {state.saving ? "Saving…" : (state.acknowledgement ?? "Saved")}
+                        </p>
+                        {state.preview && <p className="text-sm text-faint truncate">“{state.preview}”</p>}
+                    </div>
+                </div>
                 <button
                     onClick={onClose}
                     className="text-sm px-4 py-1.5 rounded-full border border-line text-soft hover:bg-hush transition shrink-0"
@@ -92,7 +112,7 @@ export default function PostEntryCard({ state, onClose, onChange }) {
                     <SkeletonRow />
                     <SkeletonRow short />
                 </div>
-            ) : isEmpty ? (
+            ) : total === 0 && !nudge ? (
                 <p className="italic text-base text-soft mt-3 animate-in fade-in">No open loops this time.</p>
             ) : (
                 <>
@@ -136,6 +156,15 @@ export default function PostEntryCard({ state, onClose, onChange }) {
                                     </li>
                                 ))}
                             </ul>
+                        </div>
+                    )}
+
+                    {nudge && (
+                        <div className={total > 0 ? "mt-4 pt-4 border-t border-hush" : "mt-3"}>
+                            <NudgeRow nudge={nudge} onAnswered={ok => {
+                                setNudgeAnswered(true)
+                                if (ok) onChange?.()
+                            }} />
                         </div>
                     )}
                 </>
@@ -253,28 +282,3 @@ export function KindTag({ kind }) {
     )
 }
 
-// the extractor's guess (e.g. "this week" for "before I leave") gets a
-// stronger outline so the likely answer is one obvious tap
-export function ChoiceButton({ highlighted = false, onClick, children }) {
-    return (
-        <button
-            onClick={onClick}
-            className={`text-sm px-3.5 py-1.5 rounded-full border transition text-left ${
-                highlighted
-                    ? "border-brand/30 bg-brand-soft text-brand-deep hover:bg-brand/20"
-                    : "border-line text-soft hover:bg-hush"
-            }`}
-        >
-            {children}
-        </button>
-    )
-}
-
-export function ResolvedLine({ message }) {
-    return (
-        <p className="flex items-center gap-2 text-sm text-soft animate-in fade-in">
-            <Check className="w-4 h-4 text-brand" />
-            {message}
-        </p>
-    )
-}

@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/dialog"
 import PostEntryCard from "@/components/intentions/PostEntryCard"
 import OpenLoops from "@/components/intentions/OpenLoops"
+import ReviewReadyCard from "@/components/review/ReviewReadyCard"
+import { mondayOf } from "@/lib/review/week"
+import { acknowledgementFor } from "@/lib/acknowledgement"
+import ActivityStrip from "@/components/journal/ActivityStrip"
 
 // Module-scoped so it survives client-side navigation away from and back to
 // this page (Next unmounts the page component on route change, which would
@@ -47,37 +51,7 @@ function computeStreak(entries) {
     return streak
 }
 
-// Last 12 weeks, grouped for a GitHub-style activity strip.
-function buildActivityWeeks(entries) {
-    const counts = new Map()
-    entries.forEach(e => {
-        const key = dateKey(new Date(e.createdAt))
-        counts.set(key, (counts.get(key) || 0) + 1)
-    })
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const days = []
-    for (let i = 83; i >= 0; i--) {
-        const d = new Date(today)
-        d.setDate(d.getDate() - i)
-        const key = dateKey(d)
-        days.push({ key, count: counts.get(key) || 0 })
-    }
-
-    const weeks = []
-    for (let i = 0; i < days.length; i += 7) {
-        weeks.push(days.slice(i, i + 7))
-    }
-    return weeks
-}
-
-function activityColor(count) {
-    if (count === 0) return "bg-hush"
-    if (count === 1) return "bg-brand/35"
-    if (count === 2) return "bg-brand/65"
-    return "bg-brand"
-}
 
 export default function JournalPage() {
     // useSearchParams requires a Suspense boundary in the app router
@@ -196,6 +170,35 @@ function JournalPageInner() {
         }
     }
 
+    // After the entry's themes are processed (usually a few seconds after
+    // the loops show up), one of them may have become a pattern worth
+    // gently offering as a goal. Poll while the card is open; give up after
+    // a minute — anything not shown here waits for the weekly look back.
+    async function watchForNudge(key, entryId) {
+        setPostEntry(prev => prev?.key === key ? { ...prev, nudgeChecking: true } : prev)
+        for (let attempt = 0; attempt < 15; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 4000))
+            let stillOpen = true
+            setPostEntry(prev => {
+                stillOpen = prev?.key === key
+                return prev
+            })
+            if (!stillOpen) return
+            try {
+                const res = await fetch(`/api/entries/${entryId}/nudge`)
+                if (!res.ok) throw new Error(await res.text())
+                const data = await res.json()
+                if (data.pending) continue
+                setPostEntry(prev => prev?.key === key ? { ...prev, nudgeChecking: false, nudge: data.nudge } : prev)
+                return
+            } catch (err) {
+                console.error('Failed to check for a pattern nudge', err)
+                break
+            }
+        }
+        setPostEntry(prev => prev?.key === key ? { ...prev, nudgeChecking: false } : prev)
+    }
+
     // the "Open loops" strip above the editor
     const [openLoops, setOpenLoops] = useState(null)
     const loadOpenLoops = useCallback(async () => {
@@ -276,7 +279,9 @@ function JournalPageInner() {
         // the editor box becomes the post-entry card straight away
         const key = `save-${Date.now()}`
         const preview = titleToSave.trim() || bodyToSave.trim().split(/\s+/).slice(0, 8).join(' ')
-        setPostEntry({ key, preview, saving: true })
+        // the warm line shown once it's saved, based on the entries before this one
+        const acknowledgement = acknowledgementFor(entries.filter(e => !e.saving), bodyToSave)
+        setPostEntry({ key, preview, acknowledgement, saving: true })
 
         // show the entry right away so the list never feels like it
         // swallowed what you just wrote, while the real save is in flight
@@ -293,6 +298,8 @@ function JournalPageInner() {
                 body: JSON.stringify({
                     title: titleToSave,
                     body: bodyToSave,
+                    // so the server can prepare this week's look back in the user's timezone
+                    weekStart: mondayOf(new Date()).toISOString(),
                 }),
             })
 
@@ -318,8 +325,9 @@ function JournalPageInner() {
 
             // no "Entry saved" toast — the card's ✓ Saved line says it, right
             // where you were looking
-            setPostEntry(prev => prev?.key === key ? { key, entryId: savedEntry.id, preview, loading: true } : prev)
+            setPostEntry(prev => prev?.key === key ? { key, entryId: savedEntry.id, preview, acknowledgement, loading: true } : prev)
             loadSuggestions(key, savedEntry.id)
+            watchForNudge(key, savedEntry.id)
 
         } catch (err) {
             console.error('Error saving entry', err)
@@ -488,6 +496,7 @@ function JournalPageInner() {
 
                 {/* below xl, the rail collapses into this inline stack instead */}
                 <div className="xl:hidden">
+                    {openLoops && <ReviewReadyCard lastReviewOpenedAt={openLoops.lastReviewOpenedAt} className="mb-6" />}
                     <OpenLoops data={openLoops} onChanged={loadOpenLoops} onWriteAbout={writeAbout} className="mb-6" />
                     <ActivityStrip entries={realEntries} />
                     <RecurringThemes />
@@ -534,6 +543,7 @@ function JournalPageInner() {
 
             {/* rail: only on xl+, where there's genuinely spare width to use */}
             <aside className="hidden xl:block w-72 shrink-0 sticky top-8 space-y-6">
+                {openLoops && <ReviewReadyCard lastReviewOpenedAt={openLoops.lastReviewOpenedAt} />}
                 <OpenLoops data={openLoops} onChanged={loadOpenLoops} onWriteAbout={writeAbout} />
                 <RailCard title="Your rhythm">
                     <ActivityStrip entries={realEntries} compact />
@@ -556,33 +566,6 @@ function RailCard({ title, children }) {
     )
 }
 
-function ActivityStrip({ entries, compact = false }) {
-    const weeks = useMemo(() => buildActivityWeeks(entries), [entries])
-
-    // Show the grid from day one — an all-empty strip still communicates
-    // "this is where your rhythm will show up," which is more useful than
-    // the widget (and its rail-card title) just not being there yet.
-    return (
-        <div className={compact ? "space-y-2" : "mb-6 flex items-center gap-4 px-1"}>
-            <div className="flex gap-[3px]">
-                {weeks.map((week, wi) => (
-                    <div key={wi} className="flex flex-col gap-[3px]">
-                        {week.map((day) => (
-                            <div
-                                key={day.key}
-                                title={`${day.key}${day.count ? ` · ${day.count} ${day.count === 1 ? 'entry' : 'entries'}` : ''}`}
-                                className={`w-2.5 h-2.5 rounded-[2px] ${activityColor(day.count)}`}
-                            />
-                        ))}
-                    </div>
-                ))}
-            </div>
-            <span className="text-sm text-neutral-400 shrink-0">
-                last 12 weeks
-            </span>
-        </div>
-    )
-}
 
 function RecurringThemes({ compact = false }) {
     const [themes, setThemes] = useState(themesCache ?? [])

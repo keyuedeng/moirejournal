@@ -1,14 +1,15 @@
 "use client"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { NotebookPen, Orbit, CircleDashed, Menu, X, ChevronDown } from "lucide-react"
+import { NotebookPen, Orbit, CircleDashed, CalendarDays, Menu, X, ChevronDown } from "lucide-react"
 import { useUser, useClerk } from '@clerk/nextjs'
 import { useState, useEffect, useRef } from 'react'
 
 const NAV_LINKS = [
     { href: "/journal", label: "Journal", icon: NotebookPen },
     { href: "/loops", label: "Open Loops", icon: CircleDashed },
-    { href: "/map", label: "My Fragments", icon: Orbit },
+    { href: "/review", label: "Weekly Look Back", icon: CalendarDays },
+    { href: "/map", label: "Your Fragments", icon: Orbit },
 ]
 
 export default function Sidebar() {
