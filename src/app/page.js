@@ -188,7 +188,7 @@ export default function Home() {
       </section>
 
       {/* questions people actually ask about a journal like this */}
-      <section id="faq" className="px-6 md:px-16 pb-24">
+      <section id="faq" className="px-6 md:px-16 py-24">
         <div className="max-w-3xl mx-auto">
           <Reveal>
             <h2 className="text-4xl md:text-5xl font-medium font-display mb-8">Questions</h2>
